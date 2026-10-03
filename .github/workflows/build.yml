@@ -1,0 +1,48 @@
+name: Build ChanBox APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout NekoBox source
+        uses: actions/checkout@v4
+        with:
+          repository: MatsuriDayo/NekoBoxForAndroid
+          ref: 5768494d8ae3c74a057bb6d46c0f8dc071b0d821
+
+      - name: Customize branding
+        run: |
+          sed -i 's|<string name="app_name" translatable="false">NekoBox</string>|<string name="app_name" translatable="false">ChanBox</string>|' app/src/main/res/values/strings.xml
+          sed -i 's|<string name="app_name_long" translatable="false">NekoBox for Android</string>|<string name="app_name_long" translatable="false">ChanBox</string>|' app/src/main/res/values/strings.xml
+          sed -i 's|^PACKAGE_NAME=.*|PACKAGE_NAME=com.chan.box|' nb4a.properties
+          grep -E 'name="app_name"' app/src/main/res/values/strings.xml | head -2
+          grep PACKAGE_NAME nb4a.properties
+
+      - name: Install Golang
+        uses: actions/setup-go@v5
+        with:
+          go-version: ^1.25
+
+      - name: Build libcore (sing-box core)
+        run: ./run lib core
+
+      - name: Gradle build APK
+        run: |
+          echo "sdk.dir=${ANDROID_HOME}" > local.properties
+          echo "ndk.dir=${ANDROID_HOME}/ndk/25.0.8775105" >> local.properties
+          ./run init action gradle
+          ./gradlew app:assemblePreviewRelease
+          APK=$(find app/build/outputs/apk -name '*arm64-v8a*.apk' | head -1)
+          echo "APKDIR=$(dirname $APK)" >> $GITHUB_ENV
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ChanBox-APK
+          path: ${{ env.APKDIR }}
