@@ -3,7 +3,7 @@ name: Build ChanBox APK
 on:
   workflow_dispatch:
   push:
-    branches: [main] 
+    branches: [main]
 
 jobs:
   build:
@@ -26,17 +26,12 @@ jobs:
         working-directory: nekobox
         run: |
           sed -i 's|<string name="app_name" translatable="false">NekoBox</string>|<string name="app_name" translatable="false">ChanBox</string>|' app/src/main/res/values/strings.xml
-          sed -i 's|<string name="app_name_long" translatable="false">NekoBox for Android</string>|<string name="app_name_long" translatable="false">ChanBox</string>|' app/src/main/res/values/strings.xml
           sed -i 's|^PACKAGE_NAME=.*|PACKAGE_NAME=com.chan.box|' nb4a.properties
-          sed -i 's|@color/material_pink_500|@color/material_blue_500|g' app/src/main/res/values/themes.xml
-          sed -i 's|@color/material_pink_700|@color/material_blue_700|g' app/src/main/res/values/themes.xml
-          sed -i 's|@color/material_pink_accent_200|@color/material_blue_accent_200|g' app/src/main/res/values/themes.xml
-          sed -i 's|@color/material_pink_100|@color/material_blue_100|g' app/src/main/res/values/themes.xml
-          sed -i 's|@color/material_pink_300|@color/material_blue_300|g' app/src/main/res/values/themes.xml
+          sed -i 's/material_pink/material_blue/g' app/src/main/res/values/themes.xml
 
       - name: Install custom icons
         run: |
-          cat chanbox-assets/icons/icons_part_*.b64 | base64 -d | tar xzf - -C nekobox/app/src/main/res/
+          cat chanbox-assets/icons/icons_part_*.b64 | base64 -d | tar xzf - -C nekobox/app/src/main/res
 
       - name: Install Golang
         uses: actions/setup-go@v5
