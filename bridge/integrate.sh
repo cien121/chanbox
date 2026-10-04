@@ -203,4 +203,262 @@ GOEOF
   echo ">>> [sing-box-lx] RoutedFlow 补丁已写入"
 fi
 
+
+# ---- #30 修复：libcore（NekoBox 1.12 代码）适配 lx 1.14 API ----
+# #29 编译到 libcore 报 9 处 API 漂移，逐项修复：
+# ① dialer.DoNotSelectInterface 已删除（lx 重构后，UsePlatformNetworkInterfaces()=false
+#    时自动走简单拨号 + AutoDetectInterfaceControl 做 protect，行为等价，直接删）
+# ② box.Context 新增第 6 参数 certificateProviderRegistry
+# ③ wireguard 从 outbound 移到 endpoint（RegisterOutbound 不存在，删）
+# ④ adapter.DNSTransport 新增 ExchangeAsync（补异步实现）
+# ⑤ process.Searcher 新增 Close/ResetCache；FindProcessInfo 改返回 *adapter.ConnectionOwner
+# ⑥ tun.DefaultInterfaceMonitor：MyInterface() 改为 MyInterfaces() []string
+# ⑦ 新增 libcore/platform_lx.go：把 neko 风平台接口桥接成 lx 的 adapter.PlatformInterface
+#    （lx 的 router/networkManager 只从 service ctx 里取 adapter.PlatformInterface），并注册
+if [ -f "libcore/platform_lx.go" ]; then
+  echo ">>> [sing-box-lx] libcore lx 适配补丁已存在，跳过"
+else
+python3 - <<'PYEOF2'
+import sys
+
+def patch(path, old, new, count=1):
+    with open(path) as f:
+        src = f.read()
+    n = src.count(old)
+    assert n == count, f"{path}: pattern found {n} times (expected {count}): {old[:70]!r}"
+    src = src.replace(old, new)
+    with open(path, "w") as f:
+        f.write(src)
+    print(f"patched {path}: {old[:60]!r}...")
+
+# ---- libcore/box.go ----
+# ① 删 dialer.DoNotSelectInterface（import + init）
+patch("libcore/box.go",
+      '\t"github.com/sagernet/sing-box/common/conntrack"\n\t"github.com/sagernet/sing-box/common/dialer"\n',
+      '\t"github.com/sagernet/sing-box/common/conntrack"\n')
+patch("libcore/box.go",
+      'func init() {\n\tdialer.DoNotSelectInterface = true\n}\n\n',
+      '')
+# ② box.Context 加第 6 参数
+patch("libcore/box.go",
+      '\t\tnekoboxAndroidDNSTransportRegistry(localTransport), nekoboxAndroidServiceRegistry(),\n\t)',
+      '\t\tnekoboxAndroidDNSTransportRegistry(localTransport), nekoboxAndroidServiceRegistry(),\n\t\tnekoboxAndroidCertificateProviderRegistry(),\n\t)')
+# ⑦ 注册 adapter.PlatformInterface 桥接器
+patch("libcore/box.go",
+      '\tservice.MustRegister[platform.Interface](ctx, boxPlatformInterfaceInstance)\n',
+      '\tservice.MustRegister[platform.Interface](ctx, boxPlatformInterfaceInstance)\n\tservice.MustRegister[adapter.PlatformInterface](ctx, newLXPlatformInterfaceWrapper())\n')
+
+# ---- libcore/box_include.go ----
+# ③ wireguard 已是 endpoint，删 outbound 注册
+patch("libcore/box_include.go", '\twireguard.RegisterOutbound(registry)\n\n', '')
+# ② 证书提供者 registry
+patch("libcore/box_include.go",
+      '\t"github.com/sagernet/sing-box/adapter"\n\t"github.com/sagernet/sing-box/adapter/endpoint"\n',
+      '\t"github.com/sagernet/sing-box/adapter"\n\t"github.com/sagernet/sing-box/adapter/certificate"\n\t"github.com/sagernet/sing-box/adapter/endpoint"\n')
+with open("libcore/box_include.go", "a") as f:
+    f.write('\nfunc nekoboxAndroidCertificateProviderRegistry() *certificate.Registry {\n\treturn certificate.NewRegistry()\n}\n')
+print("patched libcore/box_include.go: append nekoboxAndroidCertificateProviderRegistry")
+
+# ---- libcore/dns_box.go ----
+# ④ 补 ExchangeAsync
+patch("libcore/dns_box.go",
+      '\t\treturn dns.FixedResponse(message.Id, question, responseAddrs, constant.DefaultDNSTTL), nil\n\t}\n}\n',
+      '\t\treturn dns.FixedResponse(message.Id, question, responseAddrs, constant.DefaultDNSTTL), nil\n\t}\n}\n\nfunc (p *platformLocalDNSTransport) ExchangeAsync(ctx context.Context, message *mDNS.Msg, callback func(response *mDNS.Msg, err error)) {\n\tgo func() {\n\t\tresponse, err := p.Exchange(ctx, message)\n\t\tcallback(response, err)\n\t}()\n}\n')
+
+# ---- libcore/interface_monitor.go ----
+# ⑥ MyInterface() string -> MyInterfaces() []string
+patch("libcore/interface_monitor.go",
+      'func (s *interfaceMonitorStub) MyInterface() string {\n\treturn ""\n}\n',
+      'func (s *interfaceMonitorStub) MyInterfaces() []string {\n\treturn nil\n}\n')
+
+# ---- libcore/platform_box.go ----
+# ⑤ FindProcessInfo 改返回 *adapter.ConnectionOwner
+patch("libcore/platform_box.go",
+      'func (w *boxPlatformInterfaceWrapper) FindProcessInfo(ctx context.Context, network string, source netip.AddrPort, destination netip.AddrPort) (*process.Info, error) {',
+      'func (w *boxPlatformInterfaceWrapper) FindProcessInfo(ctx context.Context, network string, source netip.AddrPort, destination netip.AddrPort) (*adapter.ConnectionOwner, error) {')
+patch("libcore/platform_box.go",
+      '\tpackageName, _ := intfBox.PackageNameByUid(uid)\n\treturn &process.Info{UserId: uid, PackageName: packageName}, nil\n}\n',
+      '\tpackageName, _ := intfBox.PackageNameByUid(uid)\n\towner := &adapter.ConnectionOwner{UserId: uid}\n\tif packageName != "" {\n\t\towner.AndroidPackageNames = []string{packageName}\n\t}\n\treturn owner, nil\n}\n\n// process.Searcher（lx 1.14 新增）\n\nfunc (w *boxPlatformInterfaceWrapper) ResetCache() {}\n\nfunc (w *boxPlatformInterfaceWrapper) Close() error { return nil }\n')
+# process 包不再使用，删 import
+patch("libcore/platform_box.go",
+      '\t"github.com/sagernet/sing-box/common/process"\n',
+      '')
+
+print("ALL PATCHES OK")
+PYEOF2
+
+# ---- ⑦ 新增桥接文件 libcore/platform_lx.go ----
+cat > "libcore/platform_lx.go" <<'GOEOF'
+package libcore
+
+// sing-box-lx 移植桥接：把 NekoBox 风的平台接口（boxPlatformInterfaceInstance，
+// 实现自 MatsuriDayo fork 的 experimental/libbox/platform.Interface，
+// 已随 #29 移植进 lx 树）适配成 lx 1.14 的 adapter.PlatformInterface。
+// lx 的 router / networkManager / dialer 只从 service ctx 里取
+// adapter.PlatformInterface，不做这层桥接则 TUN / protect / 接口监控全部失效。
+
+import (
+	"context"
+	"net/netip"
+	"syscall"
+
+	"github.com/sagernet/sing-box/adapter"
+	"github.com/sagernet/sing-box/experimental/libbox/platform"
+	"github.com/sagernet/sing-box/option"
+	tun "github.com/sagernet/sing-tun"
+	E "github.com/sagernet/sing/common/exceptions"
+	"github.com/sagernet/sing/common/logger"
+	N "github.com/sagernet/sing/common/network"
+)
+
+var _ adapter.PlatformInterface = (*lxPlatformInterfaceWrapper)(nil)
+
+type lxPlatformInterfaceWrapper struct {
+	platform platform.Interface
+}
+
+func newLXPlatformInterfaceWrapper() *lxPlatformInterfaceWrapper {
+	return &lxPlatformInterfaceWrapper{platform: boxPlatformInterfaceInstance}
+}
+
+func (w *lxPlatformInterfaceWrapper) Initialize(networkManager adapter.NetworkManager) error {
+	return w.platform.Initialize(networkManager)
+}
+
+func (w *lxPlatformInterfaceWrapper) UsePlatformAutoDetectInterfaceControl() bool {
+	return w.platform.UsePlatformAutoDetectInterfaceControl()
+}
+
+func (w *lxPlatformInterfaceWrapper) AutoDetectInterfaceControl(fd int) error {
+	return w.platform.AutoDetectInterfaceControl(fd)
+}
+
+func (w *lxPlatformInterfaceWrapper) UsePlatformInterface() bool { return true }
+
+func (w *lxPlatformInterfaceWrapper) OpenInterface(options *tun.Options, platformOptions option.TunPlatformOptions) (tun.Tun, error) {
+	return w.platform.OpenTun(options, platformOptions)
+}
+
+func (w *lxPlatformInterfaceWrapper) ProcessPlatformOptions(options option.TunPlatformOptions) error {
+	return nil
+}
+
+func (w *lxPlatformInterfaceWrapper) UsePlatformDefaultInterfaceMonitor() bool {
+	return w.platform.UsePlatformDefaultInterfaceMonitor()
+}
+
+func (w *lxPlatformInterfaceWrapper) CreateDefaultInterfaceMonitor(logger logger.Logger) tun.DefaultInterfaceMonitor {
+	return w.platform.CreateDefaultInterfaceMonitor(logger)
+}
+
+func (w *lxPlatformInterfaceWrapper) UsePlatformNetworkInterfaces() bool { return false }
+
+func (w *lxPlatformInterfaceWrapper) NetworkInterfaces() ([]adapter.NetworkInterface, error) {
+	return w.platform.Interfaces()
+}
+
+func (w *lxPlatformInterfaceWrapper) UnderNetworkExtension() bool {
+	return w.platform.UnderNetworkExtension()
+}
+
+func (w *lxPlatformInterfaceWrapper) NetworkExtensionIncludeAllNetworks() bool {
+	return w.platform.IncludeAllNetworks()
+}
+
+func (w *lxPlatformInterfaceWrapper) ClearDNSCache() { w.platform.ClearDNSCache() }
+
+func (w *lxPlatformInterfaceWrapper) RequestPermissionForWIFIState() error { return nil }
+
+func (w *lxPlatformInterfaceWrapper) ReadWIFIState(ctx context.Context) adapter.WIFIState {
+	return w.platform.ReadWIFIState()
+}
+
+func (w *lxPlatformInterfaceWrapper) UsePlatformConnectionOwnerFinder() bool { return true }
+
+func (w *lxPlatformInterfaceWrapper) FindConnectionOwner(request *adapter.FindConnectionOwnerRequest) (*adapter.ConnectionOwner, error) {
+	var network string
+	switch request.IpProtocol {
+	case syscall.IPPROTO_TCP:
+		network = N.NetworkTCP
+	case syscall.IPPROTO_UDP:
+		network = N.NetworkUDP
+	default:
+		return nil, E.New("unknown ip protocol: ", request.IpProtocol)
+	}
+	sourceAddr, err := netip.ParseAddr(request.SourceAddress)
+	if err != nil {
+		return nil, err
+	}
+	destinationAddr, err := netip.ParseAddr(request.DestinationAddress)
+	if err != nil {
+		return nil, err
+	}
+	return w.platform.FindProcessInfo(context.Background(), network,
+		netip.AddrPortFrom(sourceAddr, uint16(request.SourcePort)),
+		netip.AddrPortFrom(destinationAddr, uint16(request.DestinationPort)))
+}
+
+func (w *lxPlatformInterfaceWrapper) UsePlatformWIFIMonitor() bool { return false }
+
+func (w *lxPlatformInterfaceWrapper) UsePlatformNotification() bool { return true }
+
+func (w *lxPlatformInterfaceWrapper) SendNotification(notification *adapter.Notification) error {
+	return w.platform.SendNotification(&platform.Notification{
+		Identifier: notification.Identifier,
+		TypeName:   notification.TypeName,
+		TypeID:     notification.TypeID,
+		Title:      notification.Title,
+		Subtitle:   notification.Subtitle,
+		Body:       notification.Body,
+		OpenURL:    notification.OpenURL,
+	})
+}
+
+func (w *lxPlatformInterfaceWrapper) CancelNotification(identifier string, typeID int32) error {
+	return nil
+}
+
+func (w *lxPlatformInterfaceWrapper) MyInterfaceAddress() []netip.Addr { return nil }
+
+func (w *lxPlatformInterfaceWrapper) UsePlatformNeighborResolver() bool { return false }
+
+func (w *lxPlatformInterfaceWrapper) StartNeighborMonitor(listener adapter.NeighborUpdateListener) error {
+	return E.New("not supported")
+}
+
+func (w *lxPlatformInterfaceWrapper) CloseNeighborMonitor(listener adapter.NeighborUpdateListener) error {
+	return nil
+}
+
+func (w *lxPlatformInterfaceWrapper) UsePlatformShell() bool { return false }
+
+func (w *lxPlatformInterfaceWrapper) CheckPlatformShell() error { return nil }
+
+func (w *lxPlatformInterfaceWrapper) OpenShellSession(user *adapter.PlatformUser, command string, env []string, term string, rows int32, cols int32) (adapter.ShellSession, error) {
+	return nil, E.New("not supported")
+}
+
+func (w *lxPlatformInterfaceWrapper) LookupUser(username string) (*adapter.PlatformUser, error) {
+	return nil, E.New("not supported")
+}
+
+func (w *lxPlatformInterfaceWrapper) LookupSFTPServer() (string, error) {
+	return "", E.New("not supported")
+}
+
+func (w *lxPlatformInterfaceWrapper) ReadSystemSSHHostKey() ([]byte, error) {
+	return nil, E.New("not supported")
+}
+
+func (w *lxPlatformInterfaceWrapper) TailscaleHostname() string { return "" }
+
+func (w *lxPlatformInterfaceWrapper) UsePlatformBridge() bool { return false }
+
+func (w *lxPlatformInterfaceWrapper) CreateBridge(options adapter.BridgeOptions) (adapter.BridgeSession, error) {
+	return nil, E.New("not supported")
+}
+GOEOF
+echo ">>> [sing-box-lx] libcore lx 适配补丁完成"
+fi
+
 echo ">>> [sing-box-lx] 全部完成"
