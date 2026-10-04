@@ -46,7 +46,7 @@ go mod tidy
 echo ">>> [xraybridge] 修改 build.sh 以包含 xraybridge 包"
 # bind 命令末尾是 " ."（待绑定的包），改成 " . ./xraybridge"
 if ! grep -q '\./xraybridge' build.sh; then
-  sed -i 's| \. || exit 1| . ./xraybridge || exit 1|' build.sh
+  sed -i 's# \. || exit 1# . ./xraybridge || exit 1#' build.sh
 fi
 
 echo ">>> [xraybridge] 验证 build.sh"
@@ -57,3 +57,4 @@ grep -o "gomobile-matsuri bind.*\./xraybridge" build.sh || {
 
 echo ">>> [xraybridge] 集成完成"
 cd ..
+
