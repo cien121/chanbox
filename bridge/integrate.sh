@@ -263,7 +263,7 @@ print("patched libcore/box_include.go: append nekoboxAndroidCertificateProviderR
 # ④ 补 ExchangeAsync
 patch("libcore/dns_box.go",
       '\t\treturn dns.FixedResponse(message.Id, question, responseAddrs, constant.DefaultDNSTTL), nil\n\t}\n}\n',
-      '\t\treturn dns.FixedResponse(message.Id, question, responseAddrs, constant.DefaultDNSTTL), nil\n\t}\n}\n\nfunc (p *platformLocalDNSTransport) ExchangeAsync(ctx context.Context, message *mDNS.Msg, callback func(response *mDNS.Msg, err error)) {\n\tgo func() {\n\t\tresponse, err := p.Exchange(ctx, message)\n\t\tcallback(response, err)\n\t}()\n}\n')
+      '\t\treturn dns.FixedResponse(message.Id, question, responseAddrs, constant.DefaultDNSTTL), nil\n\t}\n}\n\nfunc (p *platformLocalDNSTransport) ExchangeAsync(ctx context.Context, message *mDNS.Msg, callback func(response *mDNS.Msg, err error)) {\n\tgo func() {\n\t\tresponse, err := p.Exchange(ctx, message)\n\t\tcallback(response, err)\n\t}()\n}\n\nfunc (p *platformLocalDNSTransport) Reset() {}\n')
 
 # ---- libcore/interface_monitor.go ----
 # ⑥ MyInterface() string -> MyInterfaces() []string
@@ -314,11 +314,11 @@ import (
 var _ adapter.PlatformInterface = (*lxPlatformInterfaceWrapper)(nil)
 
 type lxPlatformInterfaceWrapper struct {
-	platform platform.Interface
+	platform *boxPlatformInterfaceWrapper
 }
 
 func newLXPlatformInterfaceWrapper() *lxPlatformInterfaceWrapper {
-	return &lxPlatformInterfaceWrapper{platform: boxPlatformInterfaceInstance}
+	return &lxPlatformInterfaceWrapper{platform: boxPlatformInterfaceInstance.(*boxPlatformInterfaceWrapper)}
 }
 
 func (w *lxPlatformInterfaceWrapper) Initialize(networkManager adapter.NetworkManager) error {
