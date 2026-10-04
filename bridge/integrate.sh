@@ -8,7 +8,7 @@ XRAY_VERSION="v26.3.27"
 
 echo ">>> [xraybridge] 复制桥接代码"
 mkdir -p libcore/xraybridge
-cp -f ../chanbox-assets/bridge/xraybridge/bridge.go libcore/xraybridge/bridge.go
+cp -f ../chanbox-assets/bridge/bridge/xraybridge/bridge.go libcore/xraybridge/bridge.go
 
 echo ">>> [xraybridge] 添加 xray-core 依赖 (version: $XRAY_VERSION)"
 cd libcore
