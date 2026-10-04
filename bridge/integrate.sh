@@ -40,6 +40,9 @@ if ! grep -q "github.com/xtls/xray-core" go.mod; then
   go get github.com/xtls/xray-core@$XRAY_COMMIT
 fi
 
+echo ">>> [xraybridge] 钉住 qpack v0.5.1（sing-box 的 quic-go fork 不兼容 v0.6.0）"
+go mod edit -replace=github.com/quic-go/qpack=github.com/quic-go/qpack@v0.5.1
+
 echo ">>> [xraybridge] 更新 go.sum"
 go mod tidy
 
