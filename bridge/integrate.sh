@@ -18,8 +18,21 @@ echo ">>> [xraybridge] 拉取 sing-box/libneko 源码（供 go.mod replace 解�
 # libcore/go.mod 有 replace github.com/matsuridayo/libneko => ../../libneko
 # 和 replace github.com/sagernet/sing-box => ../../sing-box，
 # 必须先拉取，否则 go get 解析 replace 会失败。
-# （./run lib core 里也会跑，已做幂等，重复跑无害）
-bash buildScript/lib/core/get_source.sh
+# 注意：不能直接跑 buildScript/lib/core/get_source.sh，因为它会 source env.sh
+# 进而要求 NDK 就绪，而此时 NDK 还没装好。这里只做 git clone，不碰 NDK。
+source "buildScript/lib/core/get_source_env.sh"
+if [ ! -d "../sing-box" ]; then
+  git clone --no-checkout https://github.com/MatsuriDayo/sing-box.git ../sing-box
+fi
+pushd ../sing-box > /dev/null
+git checkout "$COMMIT_SING_BOX"
+popd > /dev/null
+if [ ! -d "../libneko" ]; then
+  git clone --no-checkout https://github.com/MatsuriDayo/libneko.git ../libneko
+fi
+pushd ../libneko > /dev/null
+git checkout "$COMMIT_LIBNEKO"
+popd > /dev/null
 
 echo ">>> [xraybridge] 添加 xray-core 依赖 (commit: $XRAY_COMMIT)"
 cd libcore
