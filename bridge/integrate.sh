@@ -14,6 +14,13 @@ echo ">>> [xraybridge] 复制桥接代码"
 mkdir -p libcore/xraybridge
 cp -f ../chanbox-assets/bridge/bridge/xraybridge/bridge.go libcore/xraybridge/bridge.go
 
+echo ">>> [xraybridge] 拉取 sing-box/libneko 源码（供 go.mod replace 解析）"
+# libcore/go.mod 有 replace github.com/matsuridayo/libneko => ../../libneko
+# 和 replace github.com/sagernet/sing-box => ../../sing-box，
+# 必须先拉取，否则 go get 解析 replace 会失败。
+# （./run lib core 里也会跑，已做幂等，重复跑无害）
+bash buildScript/lib/core/get_source.sh
+
 echo ">>> [xraybridge] 添加 xray-core 依赖 (commit: $XRAY_COMMIT)"
 cd libcore
 if ! grep -q "github.com/xtls/xray-core" go.mod; then
