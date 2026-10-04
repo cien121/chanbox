@@ -96,4 +96,111 @@ else
   echo ">>> [sing-box-lx] get_source.sh 已打补丁"
 fi
 
+
+# ---- #29 修复：移植 NekoBox 专用包到 lx 树 ----
+# libcore（NekoBox 版）引用了 MatsuriDayo/sing-box fork 的 4 个独有包，
+# 上游/lx 树里没有：boxapi、common/conntrack、experimental/libbox/platform、nekoutils。
+# #28 死在这里："does not contain package .../boxapi" 等。
+# 从原版 fork 的 1.12.19-neko-1 (aed32ee) 取这 4 个目录拷进 lx 树。
+# 其中 boxapi 需补 RoutedFlow 方法：lx 1.14 的 adapter.ConnectionTracker
+# 比 1.12 多了 RoutedFlow(tun 流量统计)，实现抄上游 experimental/v2rayapi.StatsService。
+if [ -d "$SING_BOX_DIR/boxapi" ]; then
+  echo ">>> [sing-box-lx] NekoBox 专用包已存在，跳过"
+else
+  NEKO_SB_SHA="aed32ee3066cdbc7d471e3e0415c5134088962df"
+  echo ">>> [sing-box-lx] 下载 NekoBox 版 sing-box $NEKO_SB_SHA"
+  curl -sSL --retry 3 "https://codeload.github.com/MatsuriDayo/sing-box/tar.gz/${NEKO_SB_SHA}" -o /tmp/neko-sb.tgz
+  rm -rf /tmp/neko-sb-orig && mkdir -p /tmp/neko-sb-orig
+  tar xzf /tmp/neko-sb.tgz -C /tmp/neko-sb-orig
+  NEKO_SRC="/tmp/neko-sb-orig/sing-box-${NEKO_SB_SHA}"
+  for pkg in boxapi common/conntrack experimental/libbox/platform nekoutils; do
+    if [ ! -d "$NEKO_SRC/$pkg" ]; then
+      echo "ERROR: 原版包缺失: $pkg"
+      exit 1
+    fi
+  done
+  echo ">>> [sing-box-lx] 拷贝 4 个专用包进 lx 树"
+  cp -r "$NEKO_SRC/boxapi" "$SING_BOX_DIR/boxapi"
+  cp -r "$NEKO_SRC/common/conntrack" "$SING_BOX_DIR/common/conntrack"
+  mkdir -p "$SING_BOX_DIR/experimental/libbox"
+  cp -r "$NEKO_SRC/experimental/libbox/platform" "$SING_BOX_DIR/experimental/libbox/platform"
+  cp -r "$NEKO_SRC/nekoutils" "$SING_BOX_DIR/nekoutils"
+  rm -rf /tmp/neko-sb-orig /tmp/neko-sb.tgz
+  echo ">>> [sing-box-lx] 专用包拷贝完成"
+
+  echo ">>> [sing-box-lx] 给 boxapi 补 RoutedFlow（适配 lx 1.14 ConnectionTracker）"
+  cat > "$SING_BOX_DIR/boxapi/routed_flow_lx.go" <<'GOEOF'
+package boxapi
+
+// sing-box-lx 移植补丁：lx 1.14 的 adapter.ConnectionTracker 比 NekoBox 1.12 版
+// 多了一个 RoutedFlow 方法（tun 流量统计），此处按上游
+// experimental/v2rayapi.StatsService 的实现补齐。
+
+import (
+	"context"
+	"sync/atomic"
+
+	"github.com/sagernet/sing-box/adapter"
+	tun "github.com/sagernet/sing-tun"
+)
+
+var _ adapter.ConnectionTracker = (*SbStatsService)(nil)
+
+func (s *SbStatsService) RoutedFlow(ctx context.Context, metadata adapter.InboundContext, matchedRule adapter.Rule, matchOutbound adapter.Outbound) tun.FlowTracker {
+	inbound := metadata.Inbound
+	user := metadata.User
+	outbound := matchOutbound.Tag()
+	var uplinkCounter []*atomic.Int64
+	var downlinkCounter []*atomic.Int64
+	countInbound := inbound != "" && s.inbounds[inbound]
+	countOutbound := outbound != "" && s.outbounds[outbound]
+	countUser := user != "" && s.users[user]
+	if !countInbound && !countOutbound && !countUser {
+		return nil
+	}
+	s.access.Lock()
+	if countInbound {
+		uplinkCounter = append(uplinkCounter, s.loadOrCreateCounter("inbound>>>"+inbound+">>>traffic>>>uplink"))
+		downlinkCounter = append(downlinkCounter, s.loadOrCreateCounter("inbound>>>"+inbound+">>>traffic>>>downlink"))
+	}
+	if countOutbound {
+		uplinkCounter = append(uplinkCounter, s.loadOrCreateCounter("outbound>>>"+outbound+">>>traffic>>>uplink"))
+		downlinkCounter = append(downlinkCounter, s.loadOrCreateCounter("outbound>>>"+outbound+">>>traffic>>>downlink"))
+	}
+	if countUser {
+		uplinkCounter = append(uplinkCounter, s.loadOrCreateCounter("user>>>"+user+">>>traffic>>>uplink"))
+		downlinkCounter = append(downlinkCounter, s.loadOrCreateCounter("user>>>"+user+">>>traffic>>>downlink"))
+	}
+	s.access.Unlock()
+	return &sbStatsFlowTracker{uplinkCounter: uplinkCounter, downlinkCounter: downlinkCounter}
+}
+
+var _ tun.FlowTracker = (*sbStatsFlowTracker)(nil)
+
+type sbStatsFlowTracker struct {
+	uplinkCounter   []*atomic.Int64
+	downlinkCounter []*atomic.Int64
+}
+
+func (t *sbStatsFlowTracker) AttachFlow(handle tun.FlowHandle) {}
+
+func (t *sbStatsFlowTracker) CountForward(n int) {
+	for _, counter := range t.uplinkCounter {
+		counter.Add(int64(n))
+	}
+}
+
+func (t *sbStatsFlowTracker) CountReverse(n int) {
+	for _, counter := range t.downlinkCounter {
+		counter.Add(int64(n))
+	}
+}
+
+func (t *sbStatsFlowTracker) FlowEstablished() {}
+
+func (t *sbStatsFlowTracker) CloseFlow(reason tun.FlowCloseReason) {}
+GOEOF
+  echo ">>> [sing-box-lx] RoutedFlow 补丁已写入"
+fi
+
 echo ">>> [sing-box-lx] 全部完成"
