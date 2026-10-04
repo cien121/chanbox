@@ -1,63 +1,52 @@
 #!/bin/bash
-# ChanBox Xray 桥接集成脚本
-# 在 workflow 的 "Customize branding and theme" 之后、"Build libcore" 之前运行
-# working-directory: nekobox
+# ChanBox sing-box-lx 集成脚本
+# 用带 XHTTP 的 sing-box-lx 替换原版 sing-box，加 with_xhttp 编译标签
+# Karing 已验证此方案在 Android 可行
 set -e
 
-# xray-core v26.3.27 的 commit hash。
-# 注意：不能直接 require v26.3.27 标签，因为 xray-core 的 go.mod 模块路径
-# 是 github.com/xtls/xray-core（无 /v26 后缀），Go modules 拒绝 v2+ 大版本
-# 无后缀的 require。用 commit hash 让 go get 自动生成 pseudo-version。
-XRAY_COMMIT="d2758a023cd7f4174a5a5fa4ff66e487d4342ba0"
+LX_REPO="https://github.com/Leadaxe/sing-box-lx.git"
+LX_TAG="v1.14.2-lx.11"
 
-echo ">>> [xraybridge] 复制桥接代码"
-mkdir -p libcore/xraybridge
-cp -f ../chanbox-assets/bridge/bridge/xraybridge/bridge.go libcore/xraybridge/bridge.go
+echo ">>> [sing-box-lx] 当前目录: $(pwd)"
 
-echo ">>> [xraybridge] 拉取 sing-box/libneko 源码（供 go.mod replace 解析）"
-# libcore/go.mod 有 replace github.com/matsuridayo/libneko => ../../libneko
-# 和 replace github.com/sagernet/sing-box => ../../sing-box，
-# 必须先拉取，否则 go get 解析 replace 会失败。
-# 注意：不能直接跑 buildScript/lib/core/get_source.sh，因为它会 source env.sh
-# 进而要求 NDK 就绪，而此时 NDK 还没装好。这里只做 git clone，不碰 NDK。
-source "buildScript/lib/core/get_source_env.sh"
-if [ ! -d "../sing-box" ]; then
-  git clone --no-checkout https://github.com/MatsuriDayo/sing-box.git ../sing-box
-fi
-pushd ../sing-box > /dev/null
-git checkout "$COMMIT_SING_BOX"
-popd > /dev/null
-if [ ! -d "../libneko" ]; then
-  git clone --no-checkout https://github.com/MatsuriDayo/libneko.git ../libneko
-fi
-pushd ../libneko > /dev/null
-git checkout "$COMMIT_LIBNEKO"
-popd > /dev/null
+# sing-box 在 nekobox 的同级目录（libcore/go.mod: replace => ../../sing-box）
+SING_BOX_DIR="../sing-box"
 
-echo ">>> [xraybridge] 添加 xray-core 依赖 (commit: $XRAY_COMMIT)"
-cd libcore
-if ! grep -q "github.com/xtls/xray-core" go.mod; then
-  go get github.com/xtls/xray-core@$XRAY_COMMIT
+if [ -d "$SING_BOX_DIR" ]; then
+  echo ">>> [sing-box-lx] 删除原版 sing-box"
+  rm -rf "$SING_BOX_DIR"
 fi
 
-echo ">>> [xraybridge] 钉住 qpack v0.5.1（sing-box 的 quic-go fork 不兼容 v0.6.0）"
-go mod edit -replace=github.com/quic-go/qpack=github.com/quic-go/qpack@v0.5.1
+echo ">>> [sing-box-lx] clone $LX_TAG（含 submodules，XHTTP 依赖它们）"
+git clone --recurse-submodules --depth 1 --branch "$LX_TAG" "$LX_REPO" "$SING_BOX_DIR"
 
-echo ">>> [xraybridge] 更新 go.sum"
-go mod tidy
-
-echo ">>> [xraybridge] 修改 build.sh 以包含 xraybridge 包"
-# bind 命令末尾是 " ."（待绑定的包），改成 " . ./xraybridge"
-if ! grep -q '\./xraybridge' build.sh; then
-  sed -i 's# \. || exit 1# . ./xraybridge || exit 1#' build.sh
-fi
-
-echo ">>> [xraybridge] 验证 build.sh"
-grep -o "gomobile-matsuri bind.*\./xraybridge" build.sh || {
-  echo "ERROR: build.sh 未成功加入 ./xraybridge"
+echo ">>> [sing-box-lx] 校验 XHTTP 代码存在"
+if [ ! -d "$SING_BOX_DIR/transport/v2rayxhttp" ]; then
+  echo "ERROR: transport/v2rayxhttp 不存在"
   exit 1
-}
+fi
+if [ ! -f "$SING_BOX_DIR/option/v2ray_xhttp.go" ]; then
+  echo "ERROR: option/v2ray_xhttp.go 不存在"
+  exit 1
+fi
+echo ">>> [sing-box-lx] XHTTP 代码确认"
 
-echo ">>> [xraybridge] 集成完成"
-cd ..
+echo ">>> [sing-box-lx] 给 libcore/build.sh 加 with_xhttp 标签"
+BUILD_SH="libcore/build.sh"
+if [ ! -f "$BUILD_SH" ]; then
+  echo "ERROR: $BUILD_SH 不存在"
+  exit 1
+fi
 
+if grep -q "with_xhttp" "$BUILD_SH"; then
+  echo ">>> [sing-box-lx] with_xhttp 已存在，跳过"
+else
+  # 在 with_clash_api 后追加 with_xhttp
+  sed -i 's/with_clash_api/with_clash_api,with_xhttp/g' "$BUILD_SH"
+  echo ">>> [sing-box-lx] 标签已追加"
+fi
+
+echo ">>> [sing-box-lx] build.sh 标签行："
+grep -o 'with_[a-z_]*' "$BUILD_SH" | tr '\n' ',' | head -c 300
+echo ""
+echo ">>> [sing-box-lx] 完成"
