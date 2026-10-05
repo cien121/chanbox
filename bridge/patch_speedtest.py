@@ -196,7 +196,6 @@ BOX_GO_IMPORTS_OLD = '''import (
 \t"sync"
 '''
 BOX_GO_IMPORTS_NEW = '''import (
-\t"bytes"
 \t"context"
 \t"errors"
 \t"fmt"
@@ -208,7 +207,6 @@ BOX_GO_IMPORTS_NEW = '''import (
 \t"runtime/debug"
 \t"strings"
 \t"sync"
-\t"time"
 '''
 
 BOX_GO_FUNCS = '''
