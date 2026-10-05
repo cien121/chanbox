@@ -1021,3 +1021,31 @@ if [ -f "$XHTTPMENU_BRIDGE/patch_xhttp_menu.py" ]; then
 else
   echo ">>> [xhttpmenu] 警告: patch_xhttp_menu.py 不存在，跳过"
 fi
+
+
+# ---- Hysteria2 ECH 支持 ----
+# Hysteria v2.12.3 官方加入 ECH 支持（hysteria ech 子命令生成 ECH 密钥和客户端配置）。
+# sing-box-lx v1.14.2-lx.11 的 Hysteria2 出站已支持 tls.ech（OutboundECHOptions），
+# 链条已验证：Hysteria2OutboundOptions -> OutboundTLSOptionsContainer ->
+# OutboundTLSOptions.ech -> tls.NewClient -> parseECHClientConfig。
+# 补丁改 bridge/patch_hy2_ech.py（幂等，可重复跑）：
+#   1. HysteriaBean.java：加 echConfigList 字段（序列化版本 7->8）
+#   2. Constants.kt：加 SERVER_ECH_CONFIG_LIST key
+#   3. DataStore.kt：加 serverECHConfigList 字段
+#   4. hysteria_preferences.xml：加 echConfigList 输入框（SNI 之后）
+#   5. HysteriaSettingsActivity.kt：绑定
+#   6. HysteriaFmt.kt：Hy2 分支 TLS 中设置 ech（raw base64 自动包 PEM）
+#   7. strings.xml（中/英）：加 ech_config_list 文案
+# 补丁脚本在 ../chanbox-assets/bridge/，幂等，可重复跑。
+echo ">>> [hy2ech] Hysteria2 ECH 支持"
+HY2ECH_BRIDGE="../chanbox-assets/bridge"
+if [ -f "$HY2ECH_BRIDGE/patch_hy2_ech.py" ]; then
+  if python3 "$HY2ECH_BRIDGE/patch_hy2_ech.py"; then
+    echo ">>> [hy2ech] patch_hy2_ech.py OK"
+  else
+    echo "ERROR: $HY2ECH_BRIDGE/patch_hy2_ech.py 执行失败"
+    exit 1
+  fi
+else
+  echo ">>> [hy2ech] 警告: patch_hy2_ech.py 不存在，跳过"
+fi
