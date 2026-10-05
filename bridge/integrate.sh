@@ -590,3 +590,29 @@ for py in patch_inbound_configbuilder.py patch_inbound_singboxoptions.py; do
     echo ">>> [inbound113] 警告: $INBOUND_BRIDGE/$py 不存在，跳过"
   fi
 done
+
+
+# ---- Tun 1.10 修复：legacy tun address 字段合并到 address ----
+# sing-box 1.10 把 tun 的 inet4_address/inet6_address 合并为 address
+#（另有 inet4/6_route_address -> route_address，
+# inet4/6_route_exclude_address -> route_exclude_address），
+# 老字段在 1.12 被删除，设置会导致
+# "create service: initialize inbound[0] tun[tun-in]: legacy tun address fields
+#  are deprecated in sing-box 1.10.0 and removed in sing-box 1.12.0"：
+#   - ConfigBuilder.kt：tun-in 的 when (ipv6Mode) 块改用 address 字段
+#   - SingBoxOptions.java：Inbound_TunOptions 加 address 字段
+# 补丁脚本在 ../chanbox-assets/bridge/，幂等，可重复跑。
+echo ">>> [tun110] 打 tun 1.10 address 格式补丁"
+TUN_BRIDGE="../chanbox-assets/bridge"
+for py in patch_tun_configbuilder.py patch_tun_singboxoptions.py; do
+  if [ -f "$TUN_BRIDGE/$py" ]; then
+    if python3 "$TUN_BRIDGE/$py"; then
+      echo ">>> [tun110] $py OK"
+    else
+      echo "ERROR: $TUN_BRIDGE/$py 执行失败"
+      exit 1
+    fi
+  else
+    echo ">>> [tun110] 警告: $TUN_BRIDGE/$py 不存在，跳过"
+  fi
+done
