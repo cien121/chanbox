@@ -891,3 +891,29 @@ if [ -f "$APPNAME_BRIDGE/patch_app_name.py" ]; then
 else
   echo ">>> [appname] 警告: patch_app_name.py 不存在，跳过"
 fi
+
+
+# ---- 设置页面删除"启用 Clash API"和"像 SagerNet 一样显示底栏" ----
+# 用户要求删除设置页面的这两项（2026-10-05）。
+# 补丁改 bridge/patch_remove_settings.py：
+#   1. app/src/main/res/xml/global_preferences.xml：
+#      删除 key="enableClashAPI" 和 key="showBottomBar" 的 <SwitchPreference> 块；
+#      底层 DataStore/Constants 的 key 定义保留，只移除 UI 显示。
+#   2. app/src/main/java/io/nekohasekai/sagernet/ui/SettingsPreferenceFragment.kt：
+#      删除 findPreference<SwitchPreference>(Key.ENABLE_CLASH_API)!! 块
+#      （XML 项删除后 findPreference 返回 null，!! 会导致 NPE，必须同步删除）。
+# 注意：MainActivity.refreshNavMenu(DataStore.enableClashAPI) 的调用保留，
+# 它用的是 DataStore 存储值（默认 false），内部用 ?. 安全调用，不会出问题。
+# 补丁脚本在 ../chanbox-assets/bridge/，幂等，可重复跑。
+echo ">>> [rmsettings] 删除设置页面的 Clash API 和底栏显示两项"
+RMSETTINGS_BRIDGE="../chanbox-assets/bridge"
+if [ -f "$RMSETTINGS_BRIDGE/patch_remove_settings.py" ]; then
+  if python3 "$RMSETTINGS_BRIDGE/patch_remove_settings.py"; then
+    echo ">>> [rmsettings] patch_remove_settings.py OK"
+  else
+    echo "ERROR: $RMSETTINGS_BRIDGE/patch_remove_settings.py 执行失败"
+    exit 1
+  fi
+else
+  echo ">>> [rmsettings] 警告: patch_remove_settings.py 不存在，跳过"
+fi
