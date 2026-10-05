@@ -465,7 +465,8 @@ echo ">>> [sing-box-lx] 全部完成"
 
 # ---- Kotlin xhttp 接线覆盖 ----
 # V2RayFmt.kt（含 xhttp 解析/导出/transport 生成）与 StandardV2RayBean.java（含 xhttpMode）
-# 构建时覆盖到 NekoBox 源码；Kotlin 引用的 V2RayTransportOptions_XHTTPOptions 来自 sing-box-lx 的 libcore.aar
+# 构建时覆盖到 NekoBox 源码；Kotlin 引用的 V2RayTransportOptions_XHTTPOptions 是下方 #36 段
+# 打进 SingBoxOptions.java 的手写嵌套类（V2RayTransportOptions_* 系列都不是 gomobile 生成的）
 echo ">>> [kotlin] 覆盖 Kotlin 文件（xhttp 支持）"
 KOTLIN_SRC="../chanbox-assets/bridge/kotlin"
 KOTLIN_DST="app/src/main/java/io/nekohasekai/sagernet/fmt/v2ray"
@@ -481,4 +482,57 @@ if [ -d "$KOTLIN_SRC" ]; then
   done
 else
   echo ">>> [kotlin] $KOTLIN_SRC 不存在，跳过 Kotlin 覆盖"
+fi
+
+# ---- #36 修复：SingBoxOptions.java 补 V2RayTransportOptions_XHTTPOptions ----
+# #34/#35 的真正根因（之前"Go 集成部分丢失"的诊断是错的——e6e82dbd 恢复脚本后 #35 报了完全相同的错）：
+# V2RayTransportOptions_XHTTPOptions 从来就不是 gomobile 生成的类。
+# V2RayTransportOptions_* 系列是手写在 app/src/main/java/moe/matsuri/nb4a/SingBoxOptions.java
+# 里的 Java 嵌套类（文件内 "sing-box Options 生成器已经坏了" 注释即指此），
+# ddc67185 的 Kotlin 代码引用了 V2RayTransportOptions_XHTTPOptions，但这个类从未被加进去，
+# 于是 :app:compilePreviewReleaseKotlin 一直报 Unresolved reference（#34/#35 同一位置失败）。
+# 修复：构建时把该类打进 SingBoxOptions.java。字段对齐 sing-box-lx option.V2RayXHTTPOptions
+# 的 host/path/mode；Gson 按原样序列化，lx 侧收到 {"type":"xhttp",...} 后解析进 XHTTPOptions。
+echo ">>> [xhttp] 给 SingBoxOptions.java 打 XHTTPOptions 补丁"
+SINGBOX_OPTIONS="app/src/main/java/moe/matsuri/nb4a/SingBoxOptions.java"
+if grep -q "class V2RayTransportOptions_XHTTPOptions" "$SINGBOX_OPTIONS"; then
+  echo ">>> [xhttp] XHTTPOptions 已存在，跳过"
+else
+python3 - <<'PYEOF3'
+def patch(path, old, new, count=1):
+    with open(path) as f:
+        src = f.read()
+    n = src.count(old)
+    assert n == count, f"{path}: pattern found {n} times (expected {count})"
+    src = src.replace(old, new)
+    with open(path, "w") as f:
+        f.write(src)
+    print(f"patched {path}")
+
+anchor = """    public static class V2RayTransportOptions_HTTPUpgradeOptions extends V2RayTransportOptions {
+
+        public String host;
+
+        public String path;
+
+
+    }
+"""
+
+xhttp_class = """
+    public static class V2RayTransportOptions_XHTTPOptions extends V2RayTransportOptions {
+
+        public String host;
+
+        public String path;
+
+        public String mode;
+
+
+    }
+"""
+
+patch("app/src/main/java/moe/matsuri/nb4a/SingBoxOptions.java", anchor, anchor + xhttp_class)
+print("XHTTPOptions patch OK")
+PYEOF3
 fi
