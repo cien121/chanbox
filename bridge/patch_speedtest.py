@@ -21,7 +21,6 @@ Test servers (Ookla Speedtest.net):
 Idempotent: checks MARKER before applying.
 """
 import os
-import re
 import sys
 
 MARKER = "chanboxSpeedTest"
@@ -289,7 +288,6 @@ SPEEDTEST_FRAGMENT_KT = '''package io.nekohasekai.sagernet.ui
 import android.os.Bundle
 import android.view.View
 import io.nekohasekai.sagernet.R
-import io.nekohasekai.sagernet.bg.proto.SpeedTestInstance
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.SagerDatabase
 import io.nekohasekai.sagernet.databinding.LayoutSpeedtestBinding
@@ -761,7 +759,7 @@ def patch_strings(root, lang_dir, strings):
     for k, v in strings.items():
         # formatted strings need formatting="false" only when containing %; keep simple
         # aapt2 rejects a raw apostrophe ("Invalid unicode escape sequence"), escape it
-        v = re.sub(r"\\*'", r"\'", v)
+        v = v.replace("'", "\\'")
         additions.append(f'    <string name="{k}">{v}</string>')
     block = "    <!-- " + MARKER + " -->\n" + "\n".join(additions) + "\n"
     anchor = "</resources>"
