@@ -289,6 +289,7 @@ SPEEDTEST_FRAGMENT_KT = '''package io.nekohasekai.sagernet.ui
 import android.os.Bundle
 import android.view.View
 import io.nekohasekai.sagernet.R
+import io.nekohasekai.sagernet.bg.proto.SpeedTestInstance
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.SagerDatabase
 import io.nekohasekai.sagernet.databinding.LayoutSpeedtestBinding
@@ -425,7 +426,9 @@ class SpeedTestFragment : NamedFragment(R.layout.layout_speedtest) {
 # ---------------------------------------------------------------- Kotlin: SpeedTestInstance (bg/proto)
 SPEEDTEST_INSTANCE_KT = '''package io.nekohasekai.sagernet.bg.proto
 
+import io.nekohasekai.sagernet.bg.GuardedProcessPool
 import io.nekohasekai.sagernet.database.ProxyEntity
+import io.nekohasekai.sagernet.fmt.buildConfig
 import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
 import io.nekohasekai.sagernet.ktx.tryResume
 import io.nekohasekai.sagernet.ktx.tryResumeWithException
