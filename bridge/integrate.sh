@@ -669,3 +669,21 @@ else
   echo ">>> [xhttp-import] 警告: $XHTTP_BRIDGE/patch_xhttp_import.py 不存在，跳过"
 fi
 
+# ---- 测试 URL 修复：cp.cloudflare.com 经 Cloudflare Worker 访问返回 EOF ----
+# 默认测试地址 http://cp.cloudflare.com/ 是 Cloudflare 自有端点，
+# 从 Worker 内网访问时连接被提前关闭，导致 URL 延迟测试报 EOF。
+# 改为 http://www.msftconnecttest.com/connecttest.txt（HTTP 200 纯文本）。
+# 补丁脚本在 ../chanbox-assets/bridge/，幂等，可重复跑。
+echo ">>> [testurl] 打测试 URL 补丁"
+TESTURL_BRIDGE="../chanbox-assets/bridge"
+if [ -f "$TESTURL_BRIDGE/patch_test_url.py" ]; then
+  if python3 "$TESTURL_BRIDGE/patch_test_url.py"; then
+    echo ">>> [testurl] patch_test_url.py OK"
+  else
+    echo "ERROR: $TESTURL_BRIDGE/patch_test_url.py 执行失败"
+    exit 1
+  fi
+else
+  echo ">>> [testurl] 警告: $TESTURL_BRIDGE/patch_test_url.py 不存在，跳过"
+fi
+
