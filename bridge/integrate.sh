@@ -688,17 +688,15 @@ else
 fi
 
 
-# ---- 版本 UI 修复：去掉预览版弹窗，版本号显示 a1，sing-box 版本打 tag ----
+# ---- 版本 UI 修复：去掉预览版弹窗，版本号显示 a1，隐藏 sing-box 版本行 ----
 # 1. MainActivity.kt：if (isPreview) 弹窗 -> if (false && isPreview)，不再弹出
 #    "本应用为预览版，可能存在诸多问题..."
 # 2. SagerNet.kt：appVersionNameForDisplay 直接返回 "a1"，不再拼
 #    "1.4.2 pre-1.4.2-20260202-1"
-# 3. libcore/build.sh：ldflags 加
-#    -X github.com/sagernet/sing-box/constant.Version=v1.14.2-lx.11，
-#    关于页不再显示 "sing-box: unknown"。
-# 注意 build tags 行（with_...with_xhttp）保持不动，那是 xhttp 已启用的证据。
+# 3. AboutFragment.kt：删除显示 Libcore.versionBox() 的 sing-box 版本行，
+#    关于页只保留 App 版本 a1（用户要求不显示 sing-box 版本）。
 # 补丁脚本在 ../chanbox-assets/bridge/，幂等，可重复跑。
-echo ">>> [version-ui] 去预览弹窗 / 版本号 a1 / sing-box 版本号"
+echo ">>> [version-ui] 去预览弹窗 / 版本号 a1 / 隐藏 sing-box 版本行"
 VERUI_BRIDGE="../chanbox-assets/bridge"
 for py in patch_no_preview_dialog.py patch_version_display.py; do
   if [ -f "$VERUI_BRIDGE/$py" ]; then
@@ -712,9 +710,9 @@ for py in patch_no_preview_dialog.py patch_version_display.py; do
     echo ">>> [version-ui] 警告: $VERUI_BRIDGE/$py 不存在，跳过"
   fi
 done
-# sing-box 版本号打进 libcore/build.sh（在 with_xhttp 标签之后加，不冲突）
+# 隐藏关于页 sing-box 版本行
 if [ -f "$VERUI_BRIDGE/patch_singbox_version.py" ]; then
-  if python3 "$VERUI_BRIDGE/patch_singbox_version.py" "libcore/build.sh"; then
+  if python3 "$VERUI_BRIDGE/patch_singbox_version.py"; then
     echo ">>> [version-ui] patch_singbox_version.py OK"
   else
     echo "ERROR: $VERUI_BRIDGE/patch_singbox_version.py 执行失败"
