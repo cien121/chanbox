@@ -12,9 +12,11 @@ Adds download/upload speed testing through the selected proxy node:
    - ToolsFragment.kt: add SpeedTest tab
    - strings.xml (en + zh-rCN): new string resources
 
-Test servers (Cloudflare, no API key needed):
-- Download: https://speed.cloudflare.com/__down?bytes=25000000 (25MB)
-- Upload: https://speed.cloudflare.com/__up (POST)
+Test servers (Ookla Speedtest.net):
+- Server list: https://www.speedtest.net/api/js/servers (queried through the proxy,
+  so servers near the node's exit are picked)
+- Download: {server}/download?size=25000000 (25MB)
+- Upload: {server}/upload.php (POST)
 
 Idempotent: checks MARKER before applying.
 """
@@ -29,9 +31,11 @@ SPEEDTEST_GO = '''package libcore
 import (
 \t"bytes"
 \t"context"
+\t"encoding/json"
 \t"fmt"
 \t"io"
 \t"net/http"
+\t"strings"
 \t"time"
 )
 
@@ -49,6 +53,7 @@ func downloadSpeed(client *http.Client, link string, timeout int32) (float64, er
 \tif err != nil {
 \t\treturn 0, err
 \t}
+\treq.Header.Set("User-Agent", ooklaUserAgent)
 
 \tstart := time.Now()
 \tresp, err := client.Do(req)
@@ -93,6 +98,7 @@ func uploadSpeed(client *http.Client, link string, sizeBytes int64, timeout int3
 \t}
 \treq.ContentLength = sizeBytes
 \treq.Header.Set("Content-Type", "application/octet-stream")
+\treq.Header.Set("User-Agent", ooklaUserAgent)
 
 \tstart := time.Now()
 \tresp, err := client.Do(req)
@@ -108,6 +114,71 @@ func uploadSpeed(client *http.Client, link string, sizeBytes int64, timeout int3
 \t}
 
 \treturn float64(sizeBytes*8) / (elapsed * 1e6), nil
+}
+
+// ---------------------------------------------------------------- Ookla Speedtest.net
+
+const ooklaUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+const ooklaServerAPI = "https://www.speedtest.net/api/js/servers?engine=js&https_functional=true&limit=10"
+
+// ooklaServer is one entry from the speedtest.net server list API.
+type ooklaServer struct {
+\tURL     string `json:"url"`
+\tName    string `json:"name"`
+\tCountry string `json:"country"`
+\tSponsor string `json:"sponsor"`
+\tHost    string `json:"host"`
+}
+
+// selectOoklaServer queries the speedtest.net server list through client
+// (so servers near the proxy exit are returned), picks the first server,
+// and returns "downloadURL\\nuploadURL\\nserverName".
+func selectOoklaServer(client *http.Client, timeout int32) (string, error) {
+\tif client == nil {
+\t\treturn "", fmt.Errorf("no client")
+\t}
+\tdefer client.CloseIdleConnections()
+
+\tctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Millisecond)
+\tdefer cancel()
+
+\treq, err := http.NewRequestWithContext(ctx, "GET", ooklaServerAPI, nil)
+\tif err != nil {
+\t\treturn "", err
+\t}
+\treq.Header.Set("User-Agent", ooklaUserAgent)
+\treq.Header.Set("Accept", "application/json")
+\treq.Header.Set("Referer", "https://www.speedtest.net/")
+
+\tresp, err := client.Do(req)
+\tif err != nil {
+\t\treturn "", err
+\t}
+\tdefer resp.Body.Close()
+
+\tif resp.StatusCode != 200 {
+\t\treturn "", fmt.Errorf("server list HTTP %d", resp.StatusCode)
+\t}
+
+\tvar servers []ooklaServer
+\tif err := json.NewDecoder(resp.Body).Decode(&servers); err != nil {
+\t\treturn "", err
+\t}
+\tif len(servers) == 0 {
+\t\treturn "", fmt.Errorf("no speedtest servers found")
+\t}
+
+\tsrv := servers[0]
+\tif srv.URL == "" {
+\t\treturn "", fmt.Errorf("server has no URL")
+\t}
+\tuploadURL := srv.URL
+\tdownloadURL := strings.Replace(srv.URL, "upload.php", "download?size=25000000", 1)
+\tname := srv.Sponsor
+\tif srv.Name != "" {
+\t\tname = srv.Name + " (" + srv.Sponsor + ")"
+\t}
+\treturn downloadURL + "\\n" + uploadURL + "\\n" + name, nil
 }
 '''
 
@@ -187,6 +258,30 @@ func SpeedTestUpload(i *BoxInstance, link string, sizeMB int32, timeout int32) (
 \t}
 \treturn uploadSpeed(client, link, int64(sizeMB)*1024*1024, timeout)
 }
+
+// SpeedTestSelectServer picks an Ookla speedtest.net server through the given
+// box instance and returns "downloadURL\\nuploadURL\\nserverName".
+// If i is nil, uses mainInstance (or direct if no service running).
+func SpeedTestSelectServer(i *BoxInstance, timeout int32) (info string, err error) {
+\tdefer device.DeferPanicToError("box.SpeedTestSelectServer", func(err_ error) { err = err_ })
+\tvar client *http.Client
+\tif i != nil {
+\t\tvar connectionTracker adapter.ConnectionTracker
+\t\tif i.v2api != nil {
+\t\t\tconnectionTracker = i.v2api.StatsService()
+\t\t}
+\t\tclient = boxapi.CreateProxyHttpClient(i.Box, connectionTracker)
+\t} else if mainInstance == nil {
+\t\tclient = boxapi.CreateProxyHttpClient(nil, nil)
+\t} else {
+\t\tvar connectionTracker adapter.ConnectionTracker
+\t\tif mainInstance.v2api != nil {
+\t\t\tconnectionTracker = mainInstance.v2api.StatsService()
+\t\t}
+\t\tclient = boxapi.CreateProxyHttpClient(mainInstance.Box, connectionTracker)
+\t}
+\treturn selectOoklaServer(client, timeout)
+}
 '''
 
 # ---------------------------------------------------------------- Kotlin: SpeedTestFragment.kt
@@ -208,8 +303,6 @@ import kotlinx.coroutines.cancel
 class SpeedTestFragment : NamedFragment(R.layout.layout_speedtest) {
 
     companion object {
-        const val DOWNLOAD_URL = "https://speed.cloudflare.com/__down?bytes=25000000"
-        const val UPLOAD_URL = "https://speed.cloudflare.com/__up"
         const val TIMEOUT_MS = 30000
         const val UPLOAD_SIZE_MB = 10
     }
@@ -257,10 +350,34 @@ class SpeedTestFragment : NamedFragment(R.layout.layout_speedtest) {
                     val instance = SpeedTestInstance(entity)
 
                     onMainDispatcher {
-                        binding.speedtestStatus.text = getString(R.string.speedtest_downloading)
+                        binding.speedtestStatus.text = getString(R.string.speedtest_selecting)
+                    }
+                    val serverParts = try {
+                        instance.doSelectServer(TIMEOUT_MS).split("\n")
+                    } catch (e: Exception) {
+                        onMainDispatcher {
+                            binding.speedtestStatus.text =
+                                getString(R.string.speedtest_error, e.message ?: "")
+                        }
+                        throw e
+                    }
+                    if (serverParts.size < 3) {
+                        onMainDispatcher {
+                            binding.speedtestStatus.text =
+                                getString(R.string.speedtest_error, "bad server info")
+                        }
+                        return@runOnDefaultDispatcher
+                    }
+                    val downloadUrl = serverParts[0]
+                    val uploadUrl = serverParts[1]
+                    val serverName = serverParts[2]
+                    onMainDispatcher {
+                        binding.speedtestStatus.text =
+                            getString(R.string.speedtest_server, serverName) +
+                            "\n" + getString(R.string.speedtest_downloading)
                     }
                     val downloadMbps = try {
-                        instance.doDownloadTest(DOWNLOAD_URL, TIMEOUT_MS)
+                        instance.doDownloadTest(downloadUrl, TIMEOUT_MS)
                     } catch (e: Exception) {
                         onMainDispatcher {
                             binding.speedtestDownload.text = getString(R.string.speedtest_failed)
@@ -274,7 +391,7 @@ class SpeedTestFragment : NamedFragment(R.layout.layout_speedtest) {
                     }
 
                     val uploadMbps = try {
-                        instance.doUploadTest(UPLOAD_URL, UPLOAD_SIZE_MB, TIMEOUT_MS)
+                        instance.doUploadTest(uploadUrl, UPLOAD_SIZE_MB, TIMEOUT_MS)
                     } catch (e: Exception) {
                         onMainDispatcher {
                             binding.speedtestUpload.text = getString(R.string.speedtest_failed)
@@ -324,6 +441,28 @@ class SpeedTestInstance(profile: ProxyEntity) : BoxInstance(profile) {
 
     override fun buildConfig() {
         config = buildConfig(profile, true)
+    }
+
+    suspend fun doSelectServer(timeout: Int): String {
+        return suspendCoroutine { c ->
+            processes = GuardedProcessPool {
+                c.tryResumeWithException(it)
+            }
+            runOnDefaultDispatcher {
+                use {
+                    try {
+                        init()
+                        launch()
+                        if (processes.processCount > 0) {
+                            delay(500)
+                        }
+                        c.tryResume(Libcore.speedTestSelectServer(box, timeout))
+                    } catch (e: Exception) {
+                        c.tryResumeWithException(e)
+                    }
+                }
+            }
+        }
     }
 
     suspend fun doDownloadTest(link: String, timeout: Int): Double {
@@ -493,7 +632,9 @@ STRINGS_EN = {
     "speedtest_no_profile": "No profile selected.",
     "speedtest_mbps": "%.1f Mbps",
     "speedtest_error": "Error: %1$s",
-    "speedtest_hint": "Speed is measured through the currently selected node via Cloudflare.",
+    "speedtest_hint": "Speed is measured through the currently selected node via Speedtest.net.",
+    "speedtest_selecting": "Selecting test server...",
+    "speedtest_server": "Server: %1$s",
 }
 
 STRINGS_ZH = {
@@ -513,7 +654,9 @@ STRINGS_ZH = {
     "speedtest_no_profile": "未选择节点。",
     "speedtest_mbps": "%.1f Mbps",
     "speedtest_error": "错误：%1$s",
-    "speedtest_hint": "通过当前选中节点，经 Cloudflare 测速。",
+    "speedtest_hint": "通过当前选中节点，经 Speedtest.net 测速。",
+    "speedtest_selecting": "正在选择测速服务器...",
+    "speedtest_server": "服务器：%1$s",
 }
 
 
@@ -642,3 +785,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
