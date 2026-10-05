@@ -649,14 +649,17 @@ done
 # `//go:build with_xhttp` 和 init() 调 v2ray.RegisterClient()，
 # 但没有任何文件 import v2rayxhttp 包，init() 永不执行，
 # 真机报 "create client transport: xhttp: unknown transport type: xhttp"。
-# 对照正常模式：transport/v2ray/grpc.go 用 `//go:build with_grpc`
-# import v2raygrpc。补 transport/v2ray/xhttp.go 做同样的事。
-# 补丁脚本在 ../chanbox-assets/bridge/，幂等，可重复跑。
-# 注意：打在 ../sing-box（lx clone），不是 nekobox 源码。
+# 注意：空白导入不能放在 transport/v2ray 包里——v2rayxhttp/register.go
+# 本身就 import transport/v2ray，会造成 import cycle（构建 #48 已证实：
+# "imports transport/v2ray from register.go: import cycle not allowed"）。
+# 安全位置是顶层的 libcore 包（sing-box 里没有任何包 import libcore）：
+# gobind -> libcore -> v2rayxhttp -> v2ray，无回边。
+# 补丁脚本在 ../chanbox-assets/bridge/，幂等，可重复跑，
+# 在 nekobox/libcore/ 下创建 xhttp_import.go（package libcore）。
 echo ">>> [xhttp-import] 补 v2rayxhttp import"
 XHTTP_BRIDGE="../chanbox-assets/bridge"
 if [ -f "$XHTTP_BRIDGE/patch_xhttp_import.py" ]; then
-  if python3 "$XHTTP_BRIDGE/patch_xhttp_import.py" "$SING_BOX_DIR"; then
+  if python3 "$XHTTP_BRIDGE/patch_xhttp_import.py" "$SING_BOX_DIR" "libcore"; then
     echo ">>> [xhttp-import] patch_xhttp_import.py OK"
   else
     echo "ERROR: $XHTTP_BRIDGE/patch_xhttp_import.py 执行失败"
@@ -665,3 +668,4 @@ if [ -f "$XHTTP_BRIDGE/patch_xhttp_import.py" ]; then
 else
   echo ">>> [xhttp-import] 警告: $XHTTP_BRIDGE/patch_xhttp_import.py 不存在，跳过"
 fi
+
