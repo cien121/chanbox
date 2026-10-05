@@ -815,3 +815,27 @@ if [ -f "$TWOCOL_BRIDGE/patch_two_column.py" ]; then
 else
   echo ">>> [twocol] 警告: patch_two_column.py 不存在，跳过"
 fi
+
+
+
+# ---- 主界面菜单改成 v2rayNG ----
+# 用户要求主界面右上角三点菜单的项目、名称、顺序与 v2rayNG 一致：
+# 服务重启、删除配置、删除重复配置、删除无效配置、将配置导出至剪贴板、
+# 定位所选配置、按测试结果排序、测试 TCP 延迟（TCPing）、测试真连接延迟、更新订阅。
+# 补丁改 bridge/patch_main_menu.py：
+#   1. add_profile_menu.xml：重写 action_misc 子菜单（重排/改名/增删项）；
+#   2. values-zh-rCN/strings.xml + values/strings.xml：重命名中文/英文文案并新增；
+#   3. ConfigurationFragment.kt：删除已下架菜单的 handler，新增四个菜单项的 handler。
+# 补丁脚本在 ../chanbox-assets/bridge/，幂等，可重复跑。
+echo ">>> [menu] 主界面菜单对齐 v2rayNG"
+MENU_BRIDGE="../chanbox-assets/bridge"
+if [ -f "$MENU_BRIDGE/patch_main_menu.py" ]; then
+  if python3 "$MENU_BRIDGE/patch_main_menu.py"; then
+    echo ">>> [menu] patch_main_menu.py OK"
+  else
+    echo "ERROR: $MENU_BRIDGE/patch_main_menu.py 执行失败"
+    exit 1
+  fi
+else
+  echo ">>> [menu] 警告: patch_main_menu.py 不存在，跳过"
+fi
