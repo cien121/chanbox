@@ -993,3 +993,31 @@ if [ -f "$GEOSRS_BRIDGE/patch_geosite_ruleset.py" ]; then
 else
   echo ">>> [geosrs] 警告: patch_geosite_ruleset.py 不存在，跳过"
 fi
+
+
+# ---- XHTTP 快捷入口：添加节点列表加 XHTTP 项，传输下拉框加 xhttp ----
+# 用户要求：手动添加节点的协议列表中加入 XHTTP 选项；VLESS 传输协议
+# 下拉框（只有 tcp/ws/http/quic/grpc/httpupgrade）中加入 xhttp。
+# 补丁改 bridge/patch_xhttp_menu.py（幂等，可重复跑）：
+#   1. add_profile_menu.xml：手动添加子菜单中 VLESS 之后加 "XHTTP" 项；
+#   2. ConfigurationFragment.kt：action_new_xhttp 打开 VMessSettingsActivity，
+#      附带 vless=true + xhttp=true；
+#   3. VMessSettingsActivity.kt：createEntity() 中 xhttp=true 时预设 type="xhttp"；
+#   4. arrays.xml：networks_value 加 xhttp；新增 xhttp_mode_value 数组
+#      (auto/packet-up/stream-up/stream-one)；
+#   5. standard_v2ray_preferences.xml：加 XHTTP 模式选择器 (key=xhttpMode)；
+#   6. StandardV2RaySettingsActivity.kt：绑定 xhttpMode，updateView() 加
+#      xhttp 分支（显示 host/path），模式选择器仅 xhttp 时可见。
+# 补丁脚本在 ../chanbox-assets/bridge/，幂等，可重复跑。
+echo ">>> [xhttpmenu] XHTTP 快捷入口 + 传输下拉框 xhttp 选项"
+XHTTPMENU_BRIDGE="../chanbox-assets/bridge"
+if [ -f "$XHTTPMENU_BRIDGE/patch_xhttp_menu.py" ]; then
+  if python3 "$XHTTPMENU_BRIDGE/patch_xhttp_menu.py"; then
+    echo ">>> [xhttpmenu] patch_xhttp_menu.py OK"
+  else
+    echo "ERROR: $XHTTPMENU_BRIDGE/patch_xhttp_menu.py 执行失败"
+    exit 1
+  fi
+else
+  echo ">>> [xhttpmenu] 警告: patch_xhttp_menu.py 不存在，跳过"
+fi
