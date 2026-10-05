@@ -565,6 +565,32 @@ for py in patch_dns_configbuilder.py patch_dns_singboxoptions.py; do
 done
 
 
+# ---- DNS detour 修复：去掉 DNS server 的 detour=direct ----
+# sing-box 1.14 在 common/dialer/detour.go 加了硬校验：DNS server 显式 detour
+# 到一个 DialerOptions 全默认的空 direct outbound 时，启动直接报错
+# "start dns/https[dns-direct]: detour to an empty direct outbound makes no sense"。
+# NekoBox 生成的 direct outbound 永远是空的（只有 tag+type），而 dns-local /
+# dns-direct 却设了 detour=TAG_DIRECT——这在 1.12 没问题，1.14 必挂。
+# 注意：这不是之前 DNS 补丁引入的，原始 NekoBox 代码就有 detour=TAG_DIRECT，
+# 之前只是被 decode 阶段的错误掩盖了（#39/#42/#45 修完 decode 才暴露到 start 阶段）。
+# 去掉 detour 后 DNS server 用默认直连拨号器，行为与 detour 到空 direct 完全等价。
+# 补丁脚本在 ../chanbox-assets/bridge/，幂等，可重复跑，必须在 [dns114] 之后执行。
+echo ">>> [dnsdetour] 去掉 DNS server 的 detour=direct"
+DETOUR_BRIDGE="../chanbox-assets/bridge"
+for py in patch_dns_detour.py; do
+  if [ -f "$DETOUR_BRIDGE/$py" ]; then
+    if python3 "$DETOUR_BRIDGE/$py"; then
+      echo ">>> [dnsdetour] $py OK"
+    else
+      echo "ERROR: $DETOUR_BRIDGE/$py 执行失败"
+      exit 1
+    fi
+  else
+    echo ">>> [dnsdetour] 警告: $DETOUR_BRIDGE/$py 不存在，跳过"
+  fi
+done
+
+
 
 # ---- Inbound 1.13 修复：legacy inbound 字段迁移到 route rule actions ----
 # sing-box 1.13 移除了 inbound 的 legacy 字段（sniff、sniff_override_destination、
@@ -616,3 +642,4 @@ for py in patch_tun_configbuilder.py patch_tun_singboxoptions.py; do
     echo ">>> [tun110] 警告: $TUN_BRIDGE/$py 不存在，跳过"
   fi
 done
+
