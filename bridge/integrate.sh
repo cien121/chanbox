@@ -839,3 +839,31 @@ if [ -f "$MENU_BRIDGE/patch_main_menu.py" ]; then
 else
   echo ">>> [menu] 警告: patch_main_menu.py 不存在，跳过"
 fi
+
+
+
+# ---- Hysteria2 编辑界面对齐 v2rayNG ----
+# 用户要求 Hysteria2 节点编辑界面的字段顺序、标签、提示文字与 v2rayNG 一致，
+# 其他协议（VLESS/VMess/Trojan/Shadowsocks）的通用字段标签也一并对齐。
+# 补丁改 bridge/patch_hy2_ui.py：
+#   1. hysteria_preferences.xml：字段按 v2rayNG 顺序重排
+#      （地址→端口→密码→混淆密码→端口跳跃间隔→带宽下行→带宽上行→
+#       跳过证书验证→SNI→证书；Hy1 专有字段放最后）；
+#   2. values-zh-rCN/strings.xml + values/strings.xml：
+#      别名 (remarks)、地址 (address)、端口 (port)、SNI、
+#      跳过证书验证 (allowInsecure)、带宽上/下行等标签对齐 v2rayNG。
+# 注意：echConfigList、证书指纹、FinalMask 为 v2rayNG 特有，
+# sing-box Hysteria2 不支持，未添加。
+# 补丁脚本在 ../chanbox-assets/bridge/，幂等，可重复跑。
+echo ">>> [hy2ui] Hysteria2 编辑界面对齐 v2rayNG"
+HY2UI_BRIDGE="../chanbox-assets/bridge"
+if [ -f "$HY2UI_BRIDGE/patch_hy2_ui.py" ]; then
+  if python3 "$HY2UI_BRIDGE/patch_hy2_ui.py"; then
+    echo ">>> [hy2ui] patch_hy2_ui.py OK"
+  else
+    echo "ERROR: $HY2UI_BRIDGE/patch_hy2_ui.py 执行失败"
+    exit 1
+  fi
+else
+  echo ">>> [hy2ui] 警告: patch_hy2_ui.py 不存在，跳过"
+fi
