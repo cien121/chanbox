@@ -724,3 +724,23 @@ else
   echo ">>> [version-ui] 警告: patch_singbox_version.py 不存在，跳过"
 fi
 
+
+# ---- 侧边导航菜单精简：去掉 推广/文档/关于 ----
+# 用户要求侧边栏只保留 配置/分组/路由/设置/日志/工具。
+# 补丁删掉 main_drawer_menu.xml 末尾的 about 分组
+#（nav_tuiguang/nav_faq/nav_about），并同步清理 MainActivity.kt 里
+# 对这三个 R.id 的引用（否则 R 常量消失会导致编译失败）。
+# 补丁脚本在 ../chanbox-assets/bridge/，幂等，可重复跑。
+echo ">>> [navmenu] 精简侧边导航菜单（去推广/文档/关于）"
+NAVMENU_BRIDGE="../chanbox-assets/bridge"
+if [ -f "$NAVMENU_BRIDGE/patch_nav_menu.py" ]; then
+  if python3 "$NAVMENU_BRIDGE/patch_nav_menu.py"; then
+    echo ">>> [navmenu] patch_nav_menu.py OK"
+  else
+    echo "ERROR: $NAVMENU_BRIDGE/patch_nav_menu.py 执行失败"
+    exit 1
+  fi
+else
+  echo ">>> [navmenu] 警告: patch_nav_menu.py 不存在，跳过"
+fi
+
