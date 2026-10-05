@@ -917,3 +917,29 @@ if [ -f "$RMSETTINGS_BRIDGE/patch_remove_settings.py" ]; then
 else
   echo ">>> [rmsettings] 警告: patch_remove_settings.py 不存在，跳过"
 fi
+
+
+# ---- 测速功能 ----
+# 用户要求添加测速功能（测试选中节点的下行/上行速度）。
+# 补丁改 bridge/patch_speedtest.py：
+#   1. libcore/speedtest.go（新建）：downloadSpeed/uploadSpeed，经代理测带宽；
+#   2. libcore/box.go：导出 SpeedTestDownload/SpeedTestUpload（仿 UrlTest 写法）；
+#   3. SpeedTestFragment.kt（新建）：工具页新增"测速"标签；
+#   4. SpeedTestInstance.kt（新建）：按 TestInstance 模式建单节点 box；
+#   5. layout_speedtest.xml（新建）：开始/取消按钮、进度条、结果展示；
+#   6. ToolsFragment.kt：加 SpeedTestFragment 标签；
+#   7. values/strings.xml + values-zh-rCN/strings.xml：测速相关文案。
+# 测速走 Cloudflare（__down/__up），经当前选中节点。
+# 补丁脚本在 ../chanbox-assets/bridge/，幂等，可重复跑。
+echo ">>> [speedtest] 添加测速功能"
+SPEEDTEST_BRIDGE="../chanbox-assets/bridge"
+if [ -f "$SPEEDTEST_BRIDGE/patch_speedtest.py" ]; then
+  if python3 "$SPEEDTEST_BRIDGE/patch_speedtest.py"; then
+    echo ">>> [speedtest] patch_speedtest.py OK"
+  else
+    echo "ERROR: $SPEEDTEST_BRIDGE/patch_speedtest.py 执行失败"
+    exit 1
+  fi
+else
+  echo ">>> [speedtest] 警告: patch_speedtest.py 不存在，跳过"
+fi
