@@ -1,14 +1,21 @@
 #!/usr/bin/env python3
-"""Patch NekoBox theme color picker: keep only black/blue/purple.
+"""Patch NekoBox theme: keep only black/blue/purple; black skin is pure black.
 
-User request: the theme color picker (ColorPickerPreference) shows ~21
-colors; trim it to only black, blue and purple.
+User requests:
+1. Theme color picker (ColorPickerPreference) shows only black, blue, purple.
+2. The black theme ("skin") must be pure black (#000000), not dark gray.
 
 Background:
 - app/src/main/res/values/colors.xml defines integer-array "material_colors"
   (21 entries). ColorPickerPreference.kt builds the picker grid from this
   array and persists the 1-based index as the theme id (see "Theme.kt" comment
   in that file).
+- colors.xml already defines <color name="black">#FF000000</color> (pure
+  black), so the picker references @color/black directly; no new color needed.
+- app/src/main/res/values/themes.xml defines Theme.SagerNet.Black and
+  Theme.SagerNet.Dialog.Black on top of color_ng_black_primary (#2B2B2B, dark
+  gray). Pure-black skin: point their primaries/backgrounds at @color/black.
+  color_ng_black_primary is used ONLY inside these two Black styles.
 - app/src/main/java/io/nekohasekai/sagernet/utils/Theme.kt maps the theme id
   (constants RED=1 ... BLACK=21) to R.style themes, with default PINK_SSR.
 
@@ -16,13 +23,19 @@ Changes (all under the NekoBox checkout, run from its root):
 
 1. app/src/main/res/values/colors.xml
    - material_colors integer-array trimmed to 3 entries, in user-listed order:
-     black (@color/material_light_black), blue (@color/material_blue_500),
-     purple (@color/material_purple_500).
+     black (@color/black, pure black #000000),
+     blue (@color/material_blue_500), purple (@color/material_purple_500).
    - NOTE: .github/workflows/build.yml runs pink->blue hex seds on this file
      BEFORE integrate.sh, but those only touch pink hex values (#E91E63 etc.),
      not the @color references used here, so no conflict.
 
-2. app/src/main/java/io/nekohasekai/sagernet/utils/Theme.kt
+2. app/src/main/res/values/themes.xml
+   - In Theme.SagerNet.Black and Theme.SagerNet.Dialog.Black:
+     replace @color/color_ng_black_primary with @color/black, and add
+     android:windowBackground + colorSurface = @color/black.
+   - Accent stays color_ng_black_accent (gray) so FAB/selection stay visible.
+
+3. app/src/main/java/io/nekohasekai/sagernet/utils/Theme.kt
    - constants remapped to the new 1-based array indices:
      BLACK=1, BLUE=2, PURPLE=3
    - defaultTheme() changed PINK_SSR -> BLUE (blue is the app's theme color)
@@ -31,21 +44,23 @@ Changes (all under the NekoBox checkout, run from its root):
      on the blue default. Unset preference (0) also lands on blue.
    - Theme constants are only referenced inside Theme.kt itself
      (SettingsPreferenceFragment/ThemedActivity only call Theme.getTheme(int)
-/     Theme.apply()), so the rewrite is safe.
+     / Theme.apply()), so the rewrite is safe.
 
-Idempotent: re-running is a no-op (marker comment left in each file).
+Idempotent: re-running is a no-op (marker comments left in each file).
 """
 
 import re
 import sys
 
 COLORS_XML = "app/src/main/res/values/colors.xml"
+THEMES_XML = "app/src/main/res/values/themes.xml"
 THEME_KT = "app/src/main/java/io/nekohasekai/sagernet/utils/Theme.kt"
 MARKER = "themeColorsBlackBluePurple"
+PURE_BLACK_MARKER = "themePureBlackSkin"
 
 NEW_ARRAY = """    <integer-array name="material_colors">
         <!-- themeColorsBlackBluePurple: picker keeps only black/blue/purple -->
-        <item>@color/material_light_black</item>
+        <item>@color/black</item>
         <item>@color/material_blue_500</item>
         <item>@color/material_purple_500</item>
     </integer-array>"""
@@ -100,24 +115,68 @@ ARRAY_RE = re.compile(
     r"    <integer-array name=\"material_colors\">\n(?:.*\n)*?    </integer-array>"
 )
 
+BLACK_STYLE_RE = re.compile(
+    r"    <style name=\"Theme\.SagerNet\.(?:Dialog\.)?Black\">\n"
+    r"(?:.*\n)*?"
+    r"    </style>"
+)
+
+PURE_BLACK_ITEMS = (
+    "        <!-- %s: pure black skin -->\n"
+    "        <item name=\"android:windowBackground\">@color/black</item>\n"
+    "        <item name=\"colorSurface\">@color/black</item>\n"
+) % PURE_BLACK_MARKER
+
+
+def _read(path):
+    with open(path, encoding="utf-8") as f:
+        return f.read()
+
+
+def _write(path, src):
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(src)
+
 
 def patch_colors_xml():
-    with open(COLORS_XML, encoding="utf-8") as f:
-        src = f.read()
-    if MARKER in src:
-        print("colors.xml already patched, skip")
-        return
+    src = _read(COLORS_XML)
     m = ARRAY_RE.search(src)
     assert m, "material_colors integer-array not found"
+    block = m.group(0)
+    # already at target state? (3 items, first one pure black)
+    if block.count("<item>") == 3 and "@color/black</item>" in block:
+        print("colors.xml already patched (pure black), skip")
+        return
     src = src[: m.start()] + NEW_ARRAY + src[m.end():]
-    with open(COLORS_XML, "w", encoding="utf-8") as f:
-        f.write(src)
-    print("colors.xml patched: material_colors -> black/blue/purple")
+    _write(COLORS_XML, src)
+    print("colors.xml patched: material_colors -> pure black/blue/purple")
+
+
+def _pure_black_style_block(block):
+    if PURE_BLACK_MARKER in block:
+        return block
+    # primaries/backgrounds -> pure black (color_ng_black_primary is only
+    # used inside these two Black styles)
+    block = block.replace("@color/color_ng_black_primary", "@color/black")
+    block = block.replace("    </style>", PURE_BLACK_ITEMS + "    </style>", 1)
+    return block
+
+
+def patch_themes_xml():
+    src = _read(THEMES_XML)
+    new_src, n = BLACK_STYLE_RE.subn(
+        lambda m: _pure_black_style_block(m.group(0)), src
+    )
+    assert n == 2, "expected 2 Black style blocks, found %d" % n
+    if new_src == src:
+        print("themes.xml already patched (pure black skin), skip")
+        return
+    _write(THEMES_XML, new_src)
+    print("themes.xml patched: Black styles -> pure black skin")
 
 
 def patch_theme_kt():
-    with open(THEME_KT, encoding="utf-8") as f:
-        src = f.read()
+    src = _read(THEME_KT)
     if MARKER in src:
         print("Theme.kt already patched, skip")
         return
@@ -138,13 +197,13 @@ def patch_theme_kt():
     assert m, "getDialogTheme() when-block not found"
     src = src[: m.start()] + NEW_GET_DIALOG_THEME + src[m.end():]
 
-    with open(THEME_KT, "w", encoding="utf-8") as f:
-        f.write(src)
+    _write(THEME_KT, src)
     print("Theme.kt patched: BLACK=1/BLUE=2/PURPLE=3, default BLUE")
 
 
 def main():
     patch_colors_xml()
+    patch_themes_xml()
     patch_theme_kt()
     print("theme colors patch done")
 
