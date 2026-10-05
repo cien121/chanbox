@@ -6,8 +6,8 @@ a Cloudflare Worker (the Worker runs inside Cloudflare's network, and
 cp.cloudflare.com is a Cloudflare-owned endpoint that doesn't respond
 properly to in-network requests).
 
-Change to http://www.msftconnecttest.com/connecttest.txt which returns
-HTTP 200 with plain text and works through any proxy.
+Change to https://www.gstatic.com/generate_204 (same as v2rayNG default):
+returns HTTP 204 with empty body, works through any proxy.
 """
 import sys
 
@@ -24,7 +24,7 @@ def main():
 
     old = 'const val CONNECTION_TEST_URL = "http://cp.cloudflare.com/"'
     assert src.count(old) == 1, f"pattern not found: {old!r}"
-    new = ('const val CONNECTION_TEST_URL = "http://www.msftconnecttest.com/connecttest.txt"\n'
+    new = ('const val CONNECTION_TEST_URL = "https://www.gstatic.com/generate_204"\n'
            f'// {MARKER}: cp.cloudflare.com returns EOF when fetched via Cloudflare Worker')
     src = src.replace(old, new)
 
