@@ -768,3 +768,25 @@ if [ -f "$ROUTES_BRIDGE/patch_default_routes.py" ]; then
 else
   echo ">>> [routes] 警告: patch_default_routes.py 不存在，跳过"
 fi
+
+
+# ---- 设置默认值对齐 v2rayNG ----
+# 用户要求 ChanBox 设置页面的默认值与 v2rayNG 一致：
+#   mtu: 9000 -> 1600
+#   remoteDns: https://dns.google/dns-query -> 1.1.1.1
+#   directDns: https://223.5.5.5/dns-query -> 223.5.5.5
+#   ipv6Mode: 0 (disable) -> 2 (prefer)
+#   logLevel: 0 (none) -> 1 (warn)
+# 补丁脚本在 ../chanbox-assets/bridge/，幂等，可重复跑。
+echo ">>> [settings] 对齐设置默认值（v2rayNG）"
+SETTINGS_BRIDGE="../chanbox-assets/bridge"
+if [ -f "$SETTINGS_BRIDGE/patch_settings_ui.py" ]; then
+  if python3 "$SETTINGS_BRIDGE/patch_settings_ui.py"; then
+    echo ">>> [settings] patch_settings_ui.py OK"
+  else
+    echo "ERROR: $SETTINGS_BRIDGE/patch_settings_ui.py 执行失败"
+    exit 1
+  fi
+else
+  echo ">>> [settings] 警告: patch_settings_ui.py 不存在，跳过"
+fi
