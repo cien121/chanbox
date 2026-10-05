@@ -536,3 +536,30 @@ patch("app/src/main/java/moe/matsuri/nb4a/SingBoxOptions.java", anchor, anchor +
 print("XHTTPOptions patch OK")
 PYEOF3
 fi
+
+
+# ---- DNS 1.14 修复：迁移到新 DNS server 格式 ----
+# sing-box 1.14 移除了 legacy DNS 格式，NekoBox 生成的旧格式会导致
+# "decode config: dns: legacy DNS fakeip options ... removed in sing-box 1.14.0"：
+#   - 顶层 dns.fakeip -> 改为 type=fakeip 的 server（inet4_range/inet6_range 内联）
+#   - 无 type 的 server（address="local"/"rcode://success"/"fakeip"/纯IP）
+#     -> 必须带 type（local/udp/tcp/tls/https/quic/h3/fakeip）+ server 字段
+#   - address_resolver/strategy -> domain_resolver（strategy 在 1.14 已移除）
+#   - dns-block（rcode://success）无对应 server 类型，-2L 用户规则改用 action=reject
+#   - avoid-loopback 规则的 outbound 匹配器在 1.14 已移除，删除该规则
+#     （保留会变成 match-all，遮挡后面的用户规则和 fakeip 规则）
+# 补丁脚本在 ../chanbox-assets/bridge/，幂等，可重复跑。
+echo ">>> [dns114] 打 DNS 1.14 格式补丁"
+DNS_BRIDGE="../chanbox-assets/bridge"
+for py in patch_dns_configbuilder.py patch_dns_singboxoptions.py; do
+  if [ -f "$DNS_BRIDGE/$py" ]; then
+    if python3 "$DNS_BRIDGE/$py"; then
+      echo ">>> [dns114] $py OK"
+    else
+      echo "ERROR: $DNS_BRIDGE/$py 执行失败"
+      exit 1
+    fi
+  else
+    echo ">>> [dns114] 警告: $DNS_BRIDGE/$py 不存在，跳过"
+  fi
+done
