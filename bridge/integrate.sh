@@ -966,3 +966,30 @@ if [ -f "$THEME_BRIDGE/patch_theme_colors.py" ]; then
 else
   echo ">>> [theme] 警告: patch_theme_colors.py 不存在，跳过"
 fi
+
+
+# ---- geosite 规则集修复 ----
+# 紧急修复：默认路由的 geosite:xxx 被转成 rule_set 本地文件引用
+# （path="geosite:category-ads-all"），sing-box 1.14 启动时尝试打开该文件
+# 导致 "no such file or directory"，服务无法启动。
+# 注意：sing-box 1.14 的 route rule 不支持 geosite/geoip 字段
+# （会直接报错 "deprecated ... removed in sing-box 1.12.0"）。
+# 补丁改 bridge/patch_geosite_ruleset.py：
+#   1. 构建时下载 sing-box + geosite.db，把 category-ads-all/google/private
+#      三个分类导出并编译为 .srs 二进制规则集，打包进 APK assets/srs/；
+#   2. 改 SingBoxOptionsUtil.kt 的 generateRuleSet()：geosite: 分类若有
+#      内置 .srs，则复制到 no_backup/srs/ 并用绝对路径引用；未知分类跳过
+#      （不再生成会导致崩溃的坏路径）。
+# 补丁脚本在 ../chanbox-assets/bridge/，幂等，可重复跑。
+echo ">>> [geosrs] geosite 分类打包为 .srs 规则集并修复 rule_set 路径"
+GEOSRS_BRIDGE="../chanbox-assets/bridge"
+if [ -f "$GEOSRS_BRIDGE/patch_geosite_ruleset.py" ]; then
+  if python3 "$GEOSRS_BRIDGE/patch_geosite_ruleset.py"; then
+    echo ">>> [geosrs] patch_geosite_ruleset.py OK"
+  else
+    echo "ERROR: $GEOSRS_BRIDGE/patch_geosite_ruleset.py 执行失败"
+    exit 1
+  fi
+else
+  echo ">>> [geosrs] 警告: patch_geosite_ruleset.py 不存在，跳过"
+fi
