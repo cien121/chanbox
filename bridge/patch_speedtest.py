@@ -756,6 +756,8 @@ def patch_strings(root, lang_dir, strings):
     additions = []
     for k, v in strings.items():
         # formatted strings need formatting="false" only when containing %; keep simple
+        # aapt2 rejects a raw apostrophe ("Invalid unicode escape sequence"), escape it
+        v = v.replace("'", "\\'")
         additions.append(f'    <string name="{k}">{v}</string>')
     block = "    <!-- " + MARKER + " -->\n" + "\n".join(additions) + "\n"
     anchor = "</resources>"
