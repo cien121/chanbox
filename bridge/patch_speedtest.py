@@ -351,7 +351,7 @@ class SpeedTestFragment : NamedFragment(R.layout.layout_speedtest) {
                         binding.speedtestStatus.text = getString(R.string.speedtest_selecting)
                     }
                     val serverParts = try {
-                        instance.doSelectServer(TIMEOUT_MS).split("\n")
+                        instance.doSelectServer(TIMEOUT_MS).split("\\n")
                     } catch (e: Exception) {
                         onMainDispatcher {
                             binding.speedtestStatus.text =
@@ -372,7 +372,7 @@ class SpeedTestFragment : NamedFragment(R.layout.layout_speedtest) {
                     onMainDispatcher {
                         binding.speedtestStatus.text =
                             getString(R.string.speedtest_server, serverName) +
-                            "\n" + getString(R.string.speedtest_downloading)
+                            "\\n" + getString(R.string.speedtest_downloading)
                     }
                     val downloadMbps = try {
                         instance.doDownloadTest(downloadUrl, TIMEOUT_MS)
@@ -615,7 +615,7 @@ LAYOUT_SPEEDTEST_XML = '''<?xml version="1.0" encoding="utf-8"?>
 # ---------------------------------------------------------------- string resources
 STRINGS_EN = {
     "tools_speedtest": "Speed Test",
-    "speedtest_idle": "Test the selected node's download/upload speed.",
+    "speedtest_idle": "Test the selected node\\'s download/upload speed.",
     "speedtest_start": "Start Test",
     "speedtest_cancel": "Cancel",
     "speedtest_download": "Download",
@@ -785,4 +785,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
