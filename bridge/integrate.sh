@@ -742,3 +742,29 @@ else
   echo ">>> [navmenu] 警告: patch_nav_menu.py 不存在，跳过"
 fi
 
+
+
+
+# ---- 默认路由规则改成 v2rayNG 的 7 条 ----
+# NekoBox 首次运行时在 ProfileManager.getRules() 里创建默认路由，
+# 这里替换为 v2rayNG 的默认 7 条：
+#   1. 屏蔽广告 [geosite:category-ads-all] -> block
+#   2. 阻断 udp443 (443/udp) -> block
+#   3. 代理 Google [geosite:google] -> proxy
+#   4. 绕过局域网 IP [geoip:private] -> direct
+#   5. 绕过局域网域名 [geosite:private] -> direct
+#   6. 绕过中国公共 DNS IP -> direct
+#   7. 绕过中国公共 DNS 域名 -> direct
+# 补丁脚本在 ../chanbox-assets/bridge/，幂等，可重复跑。
+echo ">>> [routes] 打 v2rayNG 默认路由补丁"
+ROUTES_BRIDGE="../chanbox-assets/bridge"
+if [ -f "$ROUTES_BRIDGE/patch_default_routes.py" ]; then
+  if python3 "$ROUTES_BRIDGE/patch_default_routes.py"; then
+    echo ">>> [routes] patch_default_routes.py OK"
+  else
+    echo "ERROR: $ROUTES_BRIDGE/patch_default_routes.py 执行失败"
+    exit 1
+  fi
+else
+  echo ">>> [routes] 警告: patch_default_routes.py 不存在，跳过"
+fi
