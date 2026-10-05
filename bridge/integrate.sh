@@ -867,3 +867,27 @@ if [ -f "$HY2UI_BRIDGE/patch_hy2_ui.py" ]; then
 else
   echo ">>> [hy2ui] 警告: patch_hy2_ui.py 不存在，跳过"
 fi
+
+
+# ---- 应用显示名称改为 RelayBox ----
+# 用户要求把应用名从 ChanBox 改为 RelayBox（仅显示名称，包名 com.chan.box 不变）。
+# 注意：.github/workflows/build.yml 里有一行 sed 把 NekoBox 改成 ChanBox，
+# 本补丁在 integrate.sh 里再把 ChanBox 改为 RelayBox（workflow 无权限改）。
+# 补丁改 bridge/patch_app_name.py：
+#   1. values/strings.xml：app_name ChanBox->RelayBox，
+#      app_name_long "NekoBox for Android"->"RelayBox for Android"（关于页标题）；
+#   2. CrashHandler.kt：崩溃报告头改为 RelayBox for Android；
+#   3. BackupFragment.kt：备份文件名前缀改为 relaybox_backup_。
+# 补丁脚本在 ../chanbox-assets/bridge/，幂等，可重复跑。
+echo ">>> [appname] 应用显示名称改为 RelayBox"
+APPNAME_BRIDGE="../chanbox-assets/bridge"
+if [ -f "$APPNAME_BRIDGE/patch_app_name.py" ]; then
+  if python3 "$APPNAME_BRIDGE/patch_app_name.py"; then
+    echo ">>> [appname] patch_app_name.py OK"
+  else
+    echo "ERROR: $APPNAME_BRIDGE/patch_app_name.py 执行失败"
+    exit 1
+  fi
+else
+  echo ">>> [appname] 警告: patch_app_name.py 不存在，跳过"
+fi
