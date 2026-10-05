@@ -288,6 +288,7 @@ SPEEDTEST_FRAGMENT_KT = '''package io.nekohasekai.sagernet.ui
 import android.os.Bundle
 import android.view.View
 import io.nekohasekai.sagernet.R
+import io.nekohasekai.sagernet.bg.proto.SpeedTestInstance
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.SagerDatabase
 import io.nekohasekai.sagernet.databinding.LayoutSpeedtestBinding
@@ -444,7 +445,7 @@ class SpeedTestInstance(profile: ProxyEntity) : BoxInstance(profile) {
         // chanboxSpeedTestCacheFix: use a separate cache file so this test
         // instance does not fight the main VPN service over the same bbolt
         // lock (which fails with "initialize cache-file: timeout").
-        config = config.copy(config = withSeparateCacheFile(config.config))
+        config.config = withSeparateCacheFile(config.config)
     }
 
     private fun withSeparateCacheFile(json: String): String {
@@ -753,7 +754,7 @@ def apply_cachefile_fix_to_instance(src):
         // chanboxSpeedTestCacheFix: use a separate cache file so this test
         // instance does not fight the main VPN service over the same bbolt
         // lock (which fails with "initialize cache-file: timeout").
-        config = config.copy(config = withSeparateCacheFile(config.config))
+        config.config = withSeparateCacheFile(config.config)
     }
 
     private fun withSeparateCacheFile(json: String): String {
