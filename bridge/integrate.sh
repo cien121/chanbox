@@ -643,3 +643,25 @@ for py in patch_tun_configbuilder.py patch_tun_singboxoptions.py; do
   fi
 done
 
+
+# ---- XHTTP 修复：补上缺失的 v2rayxhttp import ----
+# sing-box-lx v1.14.2-lx.11 的 transport/v2rayxhttp/register.go 有
+# `//go:build with_xhttp` 和 init() 调 v2ray.RegisterClient()，
+# 但没有任何文件 import v2rayxhttp 包，init() 永不执行，
+# 真机报 "create client transport: xhttp: unknown transport type: xhttp"。
+# 对照正常模式：transport/v2ray/grpc.go 用 `//go:build with_grpc`
+# import v2raygrpc。补 transport/v2ray/xhttp.go 做同样的事。
+# 补丁脚本在 ../chanbox-assets/bridge/，幂等，可重复跑。
+# 注意：打在 ../sing-box（lx clone），不是 nekobox 源码。
+echo ">>> [xhttp-import] 补 v2rayxhttp import"
+XHTTP_BRIDGE="../chanbox-assets/bridge"
+if [ -f "$XHTTP_BRIDGE/patch_xhttp_import.py" ]; then
+  if python3 "$XHTTP_BRIDGE/patch_xhttp_import.py" "$SING_BOX_DIR"; then
+    echo ">>> [xhttp-import] patch_xhttp_import.py OK"
+  else
+    echo "ERROR: $XHTTP_BRIDGE/patch_xhttp_import.py 执行失败"
+    exit 1
+  fi
+else
+  echo ">>> [xhttp-import] 警告: $XHTTP_BRIDGE/patch_xhttp_import.py 不存在，跳过"
+fi
