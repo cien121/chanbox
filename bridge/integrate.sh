@@ -790,3 +790,28 @@ if [ -f "$SETTINGS_BRIDGE/patch_settings_ui.py" ]; then
 else
   echo ">>> [settings] 警告: patch_settings_ui.py 不存在，跳过"
 fi
+
+
+
+# ---- 服务器列表改两列显示 ----
+# 用户要求主界面服务器列表改成两列网格（v2rayNG 有"应用双列显示"选项）。
+# 补丁做两件事：
+#   1. 新建 ktx/FixedGridLayoutManager.kt：GridLayoutManager 版的
+#      FixedLinearLayoutManager（同样的 IndexOutOfBounds 保护和 FAB
+#      滚动显隐行为），spanCount=2。
+#   2. ConfigurationFragment.kt：import 和 layoutManager 初始化改用
+#      FixedGridLayoutManager。layoutManager 字段类型保持 LinearLayoutManager
+#     （GridLayoutManager 是其子类），其余用法不受影响。
+# 补丁脚本在 ../chanbox-assets/bridge/，幂等，可重复跑。
+echo ">>> [twocol] 服务器列表改两列显示"
+TWOCOL_BRIDGE="../chanbox-assets/bridge"
+if [ -f "$TWOCOL_BRIDGE/patch_two_column.py" ]; then
+  if python3 "$TWOCOL_BRIDGE/patch_two_column.py"; then
+    echo ">>> [twocol] patch_two_column.py OK"
+  else
+    echo "ERROR: $TWOCOL_BRIDGE/patch_two_column.py 执行失败"
+    exit 1
+  fi
+else
+  echo ">>> [twocol] 警告: patch_two_column.py 不存在，跳过"
+fi
