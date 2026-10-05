@@ -441,6 +441,24 @@ class SpeedTestInstance(profile: ProxyEntity) : BoxInstance(profile) {
 
     override fun buildConfig() {
         config = buildConfig(profile, true)
+        // chanboxSpeedTestCacheFix: use a separate cache file so this test
+        // instance does not fight the main VPN service over the same bbolt
+        // lock (which fails with "initialize cache-file: timeout").
+        config = config.copy(config = withSeparateCacheFile(config.config))
+    }
+
+    private fun withSeparateCacheFile(json: String): String {
+        return try {
+            val obj = org.json.JSONObject(json)
+            val experimental = obj.optJSONObject("experimental") ?: org.json.JSONObject()
+            val cacheFile = experimental.optJSONObject("cache_file") ?: org.json.JSONObject()
+            cacheFile.put("path", "cache-speedtest.db")
+            experimental.put("cache_file", cacheFile)
+            obj.put("experimental", experimental)
+            obj.toString()
+        } catch (e: Exception) {
+            json
+        }
     }
 
     suspend fun doSelectServer(timeout: Int): String {
@@ -707,13 +725,53 @@ def patch_kotlin_instance(root):
     path = os.path.join(root, "app/src/main/java/io/nekohasekai/sagernet/bg/proto/SpeedTestInstance.kt")
     if os.path.exists(path):
         with open(path) as f:
-            if MARKER in f.read():
-                print("SpeedTestInstance.kt already exists, skip")
-                return
+            src = f.read()
+        if MARKER in src:
+            # File from previous run: ensure cache-file lock fix is present
+            if "chanboxSpeedTestCacheFix" not in src:
+                src = apply_cachefile_fix_to_instance(src)
+                with open(path, "w") as f:
+                    f.write(src)
+                print("SpeedTestInstance.kt cache-file fix applied")
+            else:
+                print("SpeedTestInstance.kt already patched, skip")
+            return
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w") as f:
         f.write(SPEEDTEST_INSTANCE_KT)
     print("SpeedTestInstance.kt written")
+
+
+def apply_cachefile_fix_to_instance(src):
+    """Add separate cache-file path to an existing SpeedTestInstance.kt."""
+    old = """    override fun buildConfig() {
+        config = buildConfig(profile, true)
+    }
+"""
+    new = """    override fun buildConfig() {
+        config = buildConfig(profile, true)
+        // chanboxSpeedTestCacheFix: use a separate cache file so this test
+        // instance does not fight the main VPN service over the same bbolt
+        // lock (which fails with "initialize cache-file: timeout").
+        config = config.copy(config = withSeparateCacheFile(config.config))
+    }
+
+    private fun withSeparateCacheFile(json: String): String {
+        return try {
+            val obj = org.json.JSONObject(json)
+            val experimental = obj.optJSONObject("experimental") ?: org.json.JSONObject()
+            val cacheFile = experimental.optJSONObject("cache_file") ?: org.json.JSONObject()
+            cacheFile.put("path", "cache-speedtest.db")
+            experimental.put("cache_file", cacheFile)
+            obj.put("experimental", experimental)
+            obj.toString()
+        } catch (e: Exception) {
+            json
+        }
+    }
+"""
+    assert old in src, "existing buildConfig not found for cache-file fix"
+    return src.replace(old, new, 1)
 
 
 def patch_tools_fragment(root):
