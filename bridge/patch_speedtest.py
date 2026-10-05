@@ -21,7 +21,6 @@ Test servers (Ookla Speedtest.net):
 Idempotent: checks MARKER before applying.
 """
 import os
-import re
 import sys
 
 MARKER = "chanboxSpeedTest"
@@ -758,9 +757,7 @@ def patch_strings(root, lang_dir, strings):
     for k, v in strings.items():
         # formatted strings need formatting="false" only when containing %; keep simple
         # aapt2 rejects a raw apostrophe ("Invalid unicode escape sequence"), escape it
-        # aapt2 rejects a raw apostrophe ("Invalid unicode escape sequence");
-        # normalize to exactly one backslash so dict may use raw or pre-escaped text
-        v = re.sub(r"\\*'", r"\'", v)
+        v = v.replace("'", "\\'")
         additions.append(f'    <string name="{k}">{v}</string>')
     block = "    <!-- " + MARKER + " -->\n" + "\n".join(additions) + "\n"
     anchor = "</resources>"
@@ -788,5 +785,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
