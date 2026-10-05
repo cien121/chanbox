@@ -943,3 +943,26 @@ if [ -f "$SPEEDTEST_BRIDGE/patch_speedtest.py" ]; then
 else
   echo ">>> [speedtest] 警告: patch_speedtest.py 不存在，跳过"
 fi
+
+
+
+# ---- 主题颜色精简 ----
+# 用户要求主题颜色选择器只保留黑/蓝/紫三色。
+# 补丁改 bridge/patch_theme_colors.py：
+#   1. app/src/main/res/values/colors.xml：material_colors 数组只留
+#      material_light_black / material_blue_500 / material_purple_500；
+#   2. utils/Theme.kt：常量重映射 BLACK=1/BLUE=2/PURPLE=3，默认主题改 BLUE，
+#      getTheme/getDialogTheme 只保留三色分支，旧的存储值 fallback 到蓝色。
+# 补丁脚本在 ../chanbox-assets/bridge/，幂等，可重复跑。
+echo ">>> [theme] 主题颜色选择器精简为黑/蓝/紫三色"
+THEME_BRIDGE="../chanbox-assets/bridge"
+if [ -f "$THEME_BRIDGE/patch_theme_colors.py" ]; then
+  if python3 "$THEME_BRIDGE/patch_theme_colors.py"; then
+    echo ">>> [theme] patch_theme_colors.py OK"
+  else
+    echo "ERROR: $THEME_BRIDGE/patch_theme_colors.py 执行失败"
+    exit 1
+  fi
+else
+  echo ">>> [theme] 警告: patch_theme_colors.py 不存在，跳过"
+fi
