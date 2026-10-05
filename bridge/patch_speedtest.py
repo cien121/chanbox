@@ -615,7 +615,7 @@ LAYOUT_SPEEDTEST_XML = '''<?xml version="1.0" encoding="utf-8"?>
 # ---------------------------------------------------------------- string resources
 STRINGS_EN = {
     "tools_speedtest": "Speed Test",
-    "speedtest_idle": "Test the selected node\\'s download/upload speed.",
+    "speedtest_idle": "Test the selected node's download/upload speed.",
     "speedtest_start": "Start Test",
     "speedtest_cancel": "Cancel",
     "speedtest_download": "Download",
