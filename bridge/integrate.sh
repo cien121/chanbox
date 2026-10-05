@@ -563,3 +563,30 @@ for py in patch_dns_configbuilder.py patch_dns_singboxoptions.py; do
     echo ">>> [dns114] 警告: $DNS_BRIDGE/$py 不存在，跳过"
   fi
 done
+
+
+
+# ---- Inbound 1.13 修复：legacy inbound 字段迁移到 route rule actions ----
+# sing-box 1.13 移除了 inbound 的 legacy 字段（sniff、sniff_override_destination、
+# sniff_timeout、domain_strategy、udp_disable_domain_unmapping），NekoBox 生成的
+# 旧格式会导致 "decode config: inbounds[1]: legacy inbound fields ... removed in
+# sing-box 1.13.0"：
+#   - sniff -> route rule {"action": "sniff"}
+#   - domain_strategy -> route rule {"action": "resolve", "strategy": "..."}
+#   - sniff_override_destination 在 1.13+ 已无对应物（上游移除），直接丢弃
+#     （NekoBox 用 FakeIP，域名路由场景不受影响）
+# 补丁脚本在 ../chanbox-assets/bridge/，幂等，可重复跑。
+echo ">>> [inbound113] 打 inbound 1.13 格式补丁"
+INBOUND_BRIDGE="../chanbox-assets/bridge"
+for py in patch_inbound_configbuilder.py patch_inbound_singboxoptions.py; do
+  if [ -f "$INBOUND_BRIDGE/$py" ]; then
+    if python3 "$INBOUND_BRIDGE/$py"; then
+      echo ">>> [inbound113] $py OK"
+    else
+      echo "ERROR: $INBOUND_BRIDGE/$py 执行失败"
+      exit 1
+    fi
+  else
+    echo ">>> [inbound113] 警告: $INBOUND_BRIDGE/$py 不存在，跳过"
+  fi
+done
