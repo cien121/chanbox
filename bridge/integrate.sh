@@ -1049,3 +1049,29 @@ if [ -f "$HY2ECH_BRIDGE/patch_hy2_ech.py" ]; then
 else
   echo ">>> [hy2ech] 警告: patch_hy2_ech.py 不存在，跳过"
 fi
+
+
+
+# ---- 负载均衡 (urltest 自动选优) ----
+# 用户要求：做负载均衡。sing-box 有 urltest 出站类型，可按延迟自动选择最优节点。
+# NekoBox 已有 selector 分组模式（group.isSelector -> 生成 selector 出站）。
+# 补丁改 bridge/patch_loadbalance.py（幂等，可重复跑）：
+#   1. Constants.kt：加 LOAD_BALANCE key；
+#   2. DataStore.kt：加 loadBalance 全局开关；
+#   3. group_preferences.xml：分组设置加"负载均衡"开关（仅 selector 模式可用）；
+#   4. strings.xml（中/英）：加文案；
+#   5. ConfigBuilder.kt：selector 分组 + 负载均衡开时，生成 urltest 出站
+#      （自动选延迟最低节点，5 分钟重测，tolerance 50ms）代替 selector。
+# 补丁脚本在 ../chanbox-assets/bridge/，幂等，可重复跑。
+echo ">>> [loadbalance] 负载均衡 urltest 支持"
+LB_BRIDGE="../chanbox-assets/bridge"
+if [ -f "$LB_BRIDGE/patch_loadbalance.py" ]; then
+  if python3 "$LB_BRIDGE/patch_loadbalance.py"; then
+    echo ">>> [loadbalance] patch_loadbalance.py OK"
+  else
+    echo "ERROR: $LB_BRIDGE/patch_loadbalance.py 执行失败"
+    exit 1
+  fi
+else
+  echo ">>> [loadbalance] 警告: patch_loadbalance.py 不存在，跳过"
+fi
