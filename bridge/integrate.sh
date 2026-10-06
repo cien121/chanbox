@@ -1075,3 +1075,20 @@ if [ -f "$LB_BRIDGE/patch_loadbalance.py" ]; then
 else
   echo ">>> [loadbalance] 警告: patch_loadbalance.py 不存在，跳过"
 fi
+
+# 补丁改 bridge/patch_loadbalance_quick.py（幂等，可重复跑）：
+#   主界面 ⋮ 菜单加"负载均衡"快捷开关（checkable），点一下直接对当前分组
+#   开/关负载均衡，开启时自动把当前分组设为 selector 模式。
+#   与分组设置里的开关共用 DataStore.loadBalance，互相兼容。
+#   需 patch_loadbalance.py 先跑。
+echo ">>> [loadbalance-quick] 主界面负载均衡快捷开关"
+if [ -f "$LB_BRIDGE/patch_loadbalance_quick.py" ]; then
+  if python3 "$LB_BRIDGE/patch_loadbalance_quick.py"; then
+    echo ">>> [loadbalance-quick] patch_loadbalance_quick.py OK"
+  else
+    echo "ERROR: $LB_BRIDGE/patch_loadbalance_quick.py 执行失败"
+    exit 1
+  fi
+else
+  echo ">>> [loadbalance-quick] 警告: patch_loadbalance_quick.py 不存在，跳过"
+fi
