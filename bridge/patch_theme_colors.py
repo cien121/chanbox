@@ -1,33 +1,34 @@
 #!/usr/bin/env python3
-"""Patch NekoBox theme: keep only black/blue/purple; black skin is pure black.
+"""Patch NekoBox: black-only theme + mixed per-protocol font colors.
 
-User requests:
-1. Theme color picker (ColorPickerPreference) shows only black, blue, purple.
-2. The black theme ("skin") must be pure black (#000000), not dark gray.
+User requests (2026-10-06):
+1. App theme keeps ONLY black (blue/purple theme options removed),
+   black is pure black (#000000), and black is the default theme.
+2. Font colors are "mixed": node-list protocol labels get a distinct color
+   per protocol (VLESS blue, Hysteria purple, Trojan orange, ...), complementing
+   the existing status colors (latency green / error red).
 
 Background:
 - app/src/main/res/values/colors.xml defines integer-array "material_colors"
   (21 entries). ColorPickerPreference.kt builds the picker grid from this
-  array and persists the 1-based index as the theme id (see "Theme.kt" comment
-  in that file).
+  array and persists the 1-based index as the theme id.
 - colors.xml already defines <color name="black">#FF000000</color> (pure
-  black), so the picker references @color/black directly; no new color needed.
+  black), so the picker references @color/black directly.
 - app/src/main/res/values/themes.xml defines Theme.SagerNet.Black and
-  Theme.SagerNet.Dialog.Black on top of color_ng_black_primary (#2B2B2B, dark
-  gray). Pure-black skin: point their primaries/backgrounds at @color/black.
+  Theme.SagerNet.Dialog.Black on top of color_ng_black_primary (#2B2B2B).
+  Pure-black skin: point their primaries/backgrounds at @color/black.
   color_ng_black_primary is used ONLY inside these two Black styles.
 - app/src/main/java/io/nekohasekai/sagernet/utils/Theme.kt maps the theme id
-  (constants RED=1 ... BLACK=21) to R.style themes, with default PINK_SSR.
+  (constants RED=1 ... BLACK=21) to R.style themes, default PINK_SSR.
+- app/src/main/java/moe/matsuri/nb4a/Protocols.kt has
+  Context.getProtocolColor(type) used by ConfigurationFragment for the
+  protocol label color in the node list (and a ForegroundColorSpan for the
+  selected node). Stock version only distinguishes TYPE_NEKO.
 
 Changes (all under the NekoBox checkout, run from its root):
 
 1. app/src/main/res/values/colors.xml
-   - material_colors integer-array trimmed to 3 entries, in user-listed order:
-     black (@color/black, pure black #000000),
-     blue (@color/material_blue_500), purple (@color/material_purple_500).
-   - NOTE: .github/workflows/build.yml runs pink->blue hex seds on this file
-     BEFORE integrate.sh, but those only touch pink hex values (#E91E63 etc.),
-     not the @color references used here, so no conflict.
+   - material_colors integer-array trimmed to ONE entry: @color/black.
 
 2. app/src/main/res/values/themes.xml
    - In Theme.SagerNet.Black and Theme.SagerNet.Dialog.Black:
@@ -36,17 +37,41 @@ Changes (all under the NekoBox checkout, run from its root):
    - Accent stays color_ng_black_accent (gray) so FAB/selection stay visible.
 
 3. app/src/main/java/io/nekohasekai/sagernet/utils/Theme.kt
-   - constants remapped to the new 1-based array indices:
-     BLACK=1, BLUE=2, PURPLE=3
-   - defaultTheme() changed PINK_SSR -> BLUE (blue is the app's theme color)
-   - getTheme()/getDialogTheme() when-branches trimmed to the three colors;
-     any stale stored value (e.g. old ids 1..21) falls into `else` and lands
-     on the blue default. Unset preference (0) also lands on blue.
+   - constants: only BLACK = 1 (marker themeBlackOnly). Migration-safe:
+     matches any run of "const val X = N" lines, so it works on the fresh
+     NekoBox file AND on files already patched by the old black/blue/purple
+     patch (stale marker comment is removed).
+   - defaultTheme() changed to BLACK (regex handles PINK_SSR/BLUE/anything).
+   - getTheme()/getDialogTheme() when-branches trimmed to BLACK only;
+     any stale stored value (old ids 1..21, old 1..3, or unset 0) falls into
+     `else` and lands on black.
    - Theme constants are only referenced inside Theme.kt itself
      (SettingsPreferenceFragment/ThemedActivity only call Theme.getTheme(int)
      / Theme.apply()), so the rewrite is safe.
 
-Idempotent: re-running is a no-op (marker comments left in each file).
+4. app/src/main/java/moe/matsuri/nb4a/Protocols.kt
+   - getProtocolColor(): per-protocol colors (fixed material colors, readable
+     on the pure-black theme):
+       VMESS/VLESS blue_500, TROJAN orange_500, TROJAN_GO deep_orange_500,
+       SS cyan_500, SOCKS grey_400, HTTP teal_500, HYSTERIA purple_500,
+       TUIC indigo_500, WG green_500, SSH lime_500, NAIVE yellow_500,
+       MIERU pink_500, ANYTLS light_blue_500, SHADOWTLS amber_500,
+       CHAIN blue_grey_400, CONFIG brown_500, NEKO textColorPrimary,
+       else accentOrTextSecondary (unchanged).
+   - Adds imports: ProxyEntity.Companion.* and ktx.getColour.
+   - Marker: protocolMixedColors (idempotent).
+
+5. Settings page: remove the "theme" (ColorPickerPreference) item entirely,
+   since only black remains and there is nothing to pick.
+   - app/src/main/res/xml/global_preferences.xml: drop the
+     <moe.matsuri.nb4a.ui.ColorPickerPreference ... app:key="appTheme" />
+     block.
+   - app/src/main/java/io/nekohasekai/sagernet/ui/SettingsPreferenceFragment.kt:
+     drop the findPreference<ColorPickerPreference>(Key.APP_THEME)!! block
+     (avoids NPE after the XML removal).
+   - Idempotent via target-state checks (block already gone -> skip).
+
+Idempotent: re-running is a no-op (marker comments / target-state checks).
 """
 
 import re
@@ -55,33 +80,25 @@ import sys
 COLORS_XML = "app/src/main/res/values/colors.xml"
 THEMES_XML = "app/src/main/res/values/themes.xml"
 THEME_KT = "app/src/main/java/io/nekohasekai/sagernet/utils/Theme.kt"
-MARKER = "themeColorsBlackBluePurple"
+PROTOCOLS_KT = "app/src/main/java/moe/matsuri/nb4a/Protocols.kt"
+SETTINGS_XML = "app/src/main/res/xml/global_preferences.xml"
+SETTINGS_KT = "app/src/main/java/io/nekohasekai/sagernet/ui/SettingsPreferenceFragment.kt"
+MARKER = "themeBlackOnly"
 PURE_BLACK_MARKER = "themePureBlackSkin"
+PROTO_COLOR_MARKER = "protocolMixedColors"
 
 NEW_ARRAY = """    <integer-array name="material_colors">
-        <!-- themeColorsBlackBluePurple: picker keeps only black/blue/purple -->
+        <!-- themeBlackOnly: picker keeps only black -->
         <item>@color/black</item>
-        <item>@color/material_blue_500</item>
-        <item>@color/material_purple_500</item>
     </integer-array>"""
 
-NEW_CONSTANTS = """    // themeColorsBlackBluePurple: picker keeps only black/blue/purple
+NEW_CONSTANTS = """    // themeBlackOnly: only black theme
     const val BLACK = 1
-    const val BLUE = 2
-    const val PURPLE = 3
 """
-
-OLD_CONSTANTS_RE = re.compile(
-    r"    const val RED = 1\n"
-    r"(?:    const val \w+ = \d+\n)+"
-    r"    const val BLACK = 21\n"
-)
 
 NEW_GET_THEME = """    fun getTheme(theme: Int): Int {
         return when (theme) {
             BLACK -> R.style.Theme_SagerNet_Black
-            BLUE -> R.style.Theme_SagerNet_Blue
-            PURPLE -> R.style.Theme_SagerNet_Purple
             else -> getTheme(defaultTheme())
         }
     }"""
@@ -97,8 +114,6 @@ OLD_GET_THEME_RE = re.compile(
 NEW_GET_DIALOG_THEME = """    fun getDialogTheme(theme: Int): Int {
         return when (theme) {
             BLACK -> R.style.Theme_SagerNet_Dialog_Black
-            BLUE -> R.style.Theme_SagerNet_Dialog_Blue
-            PURPLE -> R.style.Theme_SagerNet_Dialog_Purple
             else -> getDialogTheme(defaultTheme())
         }
     }"""
@@ -111,21 +126,76 @@ OLD_GET_DIALOG_THEME_RE = re.compile(
     r"    \}",
 )
 
+CONSTANTS_RUN_RE = re.compile(r"(?m)(?:^    const val \w+ = \d+$\n)+")
+DEFAULT_THEME_RE = re.compile(r"private fun defaultTheme\(\) = \w+")
+
+OLD_MARKER_COMMENT = "    // themeColorsBlackBluePurple: picker keeps only black/blue/purple\n"
+
 ARRAY_RE = re.compile(
-    r"    <integer-array name=\"material_colors\">\n(?:.*\n)*?    </integer-array>"
+    r'    <integer-array name="material_colors">\n(?:.*\n)*?    </integer-array>'
 )
 
 BLACK_STYLE_RE = re.compile(
-    r"    <style name=\"Theme\.SagerNet\.(?:Dialog\.)?Black\">\n"
+    r'    <style name="Theme\.SagerNet\.(?:Dialog\.)?Black">\n'
     r"(?:.*\n)*?"
     r"    </style>"
 )
 
 PURE_BLACK_ITEMS = (
     "        <!-- %s: pure black skin -->\n"
-    "        <item name=\"android:windowBackground\">@color/black</item>\n"
-    "        <item name=\"colorSurface\">@color/black</item>\n"
+    '        <item name="android:windowBackground">@color/black</item>\n'
+    '        <item name="colorSurface">@color/black</item>\n'
 ) % PURE_BLACK_MARKER
+
+# --- per-protocol font colors ---
+
+PROTO_COLOR_BODY = """    fun Context.getProtocolColor(type: Int): Int {
+        // protocolMixedColors: distinct font color per protocol
+        return when (type) {
+            TYPE_VMESS -> getColour(R.color.material_blue_500)
+            TYPE_TROJAN -> getColour(R.color.material_orange_500)
+            TYPE_TROJAN_GO -> getColour(R.color.material_deep_orange_500)
+            TYPE_SS -> getColour(R.color.material_cyan_500)
+            TYPE_SOCKS -> getColour(R.color.material_grey_400)
+            TYPE_HTTP -> getColour(R.color.material_teal_500)
+            TYPE_HYSTERIA -> getColour(R.color.material_purple_500)
+            TYPE_TUIC -> getColour(R.color.material_indigo_500)
+            TYPE_WG -> getColour(R.color.material_green_500)
+            TYPE_SSH -> getColour(R.color.material_lime_500)
+            TYPE_NAIVE -> getColour(R.color.material_yellow_500)
+            TYPE_MIERU -> getColour(R.color.material_pink_500)
+            TYPE_ANYTLS -> getColour(R.color.material_light_blue_500)
+            TYPE_SHADOWTLS -> getColour(R.color.material_amber_500)
+            TYPE_CHAIN -> getColour(R.color.material_blue_grey_400)
+            TYPE_CONFIG -> getColour(R.color.material_brown_500)
+            TYPE_NEKO -> getColorAttr(android.R.attr.textColorPrimary)
+            else -> getColorAttr(R.attr.accentOrTextSecondary)
+        }
+    }"""
+
+OLD_PROTO_COLOR_RE = re.compile(
+    r"    fun Context\.getProtocolColor\(type: Int\): Int \{\n"
+    r"(?:.*\n)*?"
+    r"    \}\n"
+)
+
+IMPORT_WILDCARD = "import io.nekohasekai.sagernet.database.ProxyEntity.Companion.*\n"
+IMPORT_GETCOLOUR = "import io.nekohasekai.sagernet.ktx.getColour\n"
+
+# --- settings page: drop the theme picker ---
+
+THEME_PICKER_XML_RE = re.compile(
+    r'        <moe\.matsuri\.nb4a\.ui\.ColorPickerPreference\n'
+    r"(?:.*\n)*?"
+    r' +app:key="appTheme" />\n'
+)
+
+APP_THEME_KT_BLOCK_RE = re.compile(
+    r"        val appTheme = findPreference<ColorPickerPreference>\(Key\.APP_THEME\)!!\n"
+    r"        appTheme\.setOnPreferenceChangeListener \{ _, newTheme ->\n"
+    r"(?:.*\n)*?"
+    r"        \}\n"
+)
 
 
 def _read(path):
@@ -143,20 +213,17 @@ def patch_colors_xml():
     m = ARRAY_RE.search(src)
     assert m, "material_colors integer-array not found"
     block = m.group(0)
-    # already at target state? (3 items, first one pure black)
-    if block.count("<item>") == 3 and "@color/black</item>" in block:
-        print("colors.xml already patched (pure black), skip")
+    if block.count("<item>") == 1 and "@color/black</item>" in block:
+        print("colors.xml already black-only, skip")
         return
     src = src[: m.start()] + NEW_ARRAY + src[m.end():]
     _write(COLORS_XML, src)
-    print("colors.xml patched: material_colors -> pure black/blue/purple")
+    print("colors.xml patched: material_colors -> black only")
 
 
 def _pure_black_style_block(block):
     if PURE_BLACK_MARKER in block:
         return block
-    # primaries/backgrounds -> pure black (color_ng_black_primary is only
-    # used inside these two Black styles)
     block = block.replace("@color/color_ng_black_primary", "@color/black")
     block = block.replace("    </style>", PURE_BLACK_ITEMS + "    </style>", 1)
     return block
@@ -178,16 +245,18 @@ def patch_themes_xml():
 def patch_theme_kt():
     src = _read(THEME_KT)
     if MARKER in src:
-        print("Theme.kt already patched, skip")
+        print("Theme.kt already black-only, skip")
         return
 
-    m = OLD_CONSTANTS_RE.search(src)
+    # drop stale marker comment left by the old black/blue/purple patch
+    src = src.replace(OLD_MARKER_COMMENT, "")
+
+    m = CONSTANTS_RUN_RE.search(src)
     assert m, "Theme.kt constants block not found"
     src = src[: m.start()] + NEW_CONSTANTS + src[m.end():]
 
-    old_default = "private fun defaultTheme() = PINK_SSR"
-    assert src.count(old_default) == 1, "defaultTheme() line not found exactly once"
-    src = src.replace(old_default, "private fun defaultTheme() = BLUE")
+    assert DEFAULT_THEME_RE.search(src), "defaultTheme() line not found"
+    src = DEFAULT_THEME_RE.sub("private fun defaultTheme() = BLACK", src, count=1)
 
     m = OLD_GET_THEME_RE.search(src)
     assert m, "getTheme() when-block not found"
@@ -198,14 +267,62 @@ def patch_theme_kt():
     src = src[: m.start()] + NEW_GET_DIALOG_THEME + src[m.end():]
 
     _write(THEME_KT, src)
-    print("Theme.kt patched: BLACK=1/BLUE=2/PURPLE=3, default BLUE")
+    print("Theme.kt patched: BLACK=1 only, default BLACK")
+
+
+def patch_protocols_kt():
+    src = _read(PROTOCOLS_KT)
+    if PROTO_COLOR_MARKER in src:
+        print("Protocols.kt already has mixed protocol colors, skip")
+        return
+
+    # add imports (after the package line block, keep it simple: append to
+    # the import section)
+    if IMPORT_WILDCARD not in src:
+        anchor = "import io.nekohasekai.sagernet.ktx.getColorAttr\n"
+        assert anchor in src, "import anchor not found in Protocols.kt"
+        src = src.replace(anchor, anchor + IMPORT_WILDCARD + IMPORT_GETCOLOUR, 1)
+
+    m = OLD_PROTO_COLOR_RE.search(src)
+    assert m, "getProtocolColor() body not found in Protocols.kt"
+    src = src[: m.start()] + PROTO_COLOR_BODY + "\n" + src[m.end():]
+
+    _write(PROTOCOLS_KT, src)
+    print("Protocols.kt patched: per-protocol mixed font colors")
+
+
+def patch_settings_remove_theme_picker():
+    # 1) XML: drop the ColorPickerPreference block
+    src = _read(SETTINGS_XML)
+    if 'app:key="appTheme"' not in src:
+        print("global_preferences.xml: theme picker already removed, skip")
+    else:
+        m = THEME_PICKER_XML_RE.search(src)
+        assert m, "theme picker block not found in global_preferences.xml"
+        src = src[: m.start()] + src[m.end():]
+        _write(SETTINGS_XML, src)
+        print("global_preferences.xml patched: theme picker removed")
+
+    # 2) Kotlin: drop the findPreference<ColorPickerPreference>(Key.APP_THEME)!!
+    #    block (would NPE after the XML removal)
+    src = _read(SETTINGS_KT)
+    if "findPreference<ColorPickerPreference>(Key.APP_THEME)" not in src:
+        print("SettingsPreferenceFragment.kt: appTheme block already removed, skip")
+        return
+    m = APP_THEME_KT_BLOCK_RE.search(src)
+    assert m, "appTheme block not found in SettingsPreferenceFragment.kt"
+    src = src[: m.start()] + src[m.end():]
+    _write(SETTINGS_KT, src)
+    print("SettingsPreferenceFragment.kt patched: appTheme block removed")
 
 
 def main():
     patch_colors_xml()
     patch_themes_xml()
     patch_theme_kt()
-    print("theme colors patch done")
+    patch_protocols_kt()
+    patch_settings_remove_theme_picker()
+    print("theme black-only + mixed font colors + no theme picker patch done")
 
 
 if __name__ == "__main__":
