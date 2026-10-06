@@ -1245,3 +1245,18 @@ if [ -f "$CC_BRIDGE/patch_compact.py" ]; then
 else
   echo ">>> [compact] 警告: patch_compact.py 不存在，跳过"
 fi
+
+# ---- #114 底部导航图标二次放大 ----
+# 用户要求（2026-10-06）："还是小" —— #113 已从 20dp 放大到 28dp，用户仍嫌小，
+# 再放大到 36dp（pill 64x44dp、label 11sp 同步）。
+# 补丁改 bridge/patch_nav_icons_v2.py（幂等，可重复跑）。
+if [ -f "$CC_BRIDGE/patch_nav_icons_v2.py" ]; then
+  if python3 "$CC_BRIDGE/patch_nav_icons_v2.py"; then
+    echo ">>> [nav-icons-v2] patch_nav_icons_v2.py OK"
+  else
+    echo "ERROR: $CC_BRIDGE/patch_nav_icons_v2.py 执行失败"
+    exit 1
+  fi
+else
+  echo ">>> [nav-icons-v2] 警告: patch_nav_icons_v2.py 不存在，跳过"
+fi
