@@ -1051,6 +1051,34 @@ else
 fi
 
 
+# ---- Hysteria2 独立跳跃端口输入框 + 协议版本显示 ----
+# 用户要求（2026-10-06）："一个独立端口，一个跳跃端口"、"增加不好吗"——
+# Hy2 编辑页"端口"下方新增独立的"跳跃端口"输入框（留空=不跳跃）；
+# 另按纠正把"协议版本：2"改成显示"协议：hysteria2"（改文字，不删除）。
+# 补丁改 bridge/patch_hy2_hop_field.py（幂等，可重复跑）：
+#   1. HysteriaBean.java：加 hopPorts 字段（序列化版本 8->9）
+#   2. Constants.kt：加 SERVER_HOP_PORTS key
+#   3. DataStore.kt：加 serverHopPorts 字段
+#   4. hysteria_preferences.xml：serverPorts 后加跳跃端口输入框；
+#      protocolVersion 的 entries 改用 hysteria_version_entries（显示 hysteria1/2）
+#   5. arrays.xml：加 hysteria_version_entries 数组
+#   6. HysteriaSettingsActivity.kt：绑定
+#   7. HysteriaFmt.kt：Hy1/Hy2 出站按 hopPorts 生成 server_ports；mport 导入导出走 hopPorts
+#   8. strings.xml（中/英）：加 hop_ports 文案；protocol_version 改名为"协议"/"Protocol"
+echo ">>> [hy2hopfield] Hysteria2 独立跳跃端口"
+HY2HOP_BRIDGE="../chanbox-assets/bridge"
+if [ -f "$HY2HOP_BRIDGE/patch_hy2_hop_field.py" ]; then
+  if python3 "$HY2HOP_BRIDGE/patch_hy2_hop_field.py"; then
+    echo ">>> [hy2hopfield] patch_hy2_hop_field.py OK"
+  else
+    echo "ERROR: $HY2HOP_BRIDGE/patch_hy2_hop_field.py 执行失败"
+    exit 1
+  fi
+else
+  echo ">>> [hy2hopfield] 警告: patch_hy2_hop_field.py 不存在，跳过"
+fi
+
+
 
 # ---- 负载均衡 (urltest 自动选优) ----
 # 用户要求：做负载均衡。sing-box 有 urltest 出站类型，可按延迟自动选择最优节点。
