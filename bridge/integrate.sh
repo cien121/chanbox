@@ -1155,3 +1155,20 @@ else
   echo ">>> [version-v01] 警告: patch_version_v01.py 不存在，跳过"
 fi
 
+
+
+# ---- 统一单页面 + 商业启动按钮 + 双栈 IP ----
+# 用户要求（2026-10-06）："干脆都安排在一个页面吧，把原来nekobox的启动图标直接换成那个商业图标"。
+# 追加：IP 出口同时显示 IPv4 和 IPv6；面板配色按 ZedSecure 参考图。
+# 补丁改 bridge/patch_unified_page.py（幂等，可重复跑）。
+echo ">>> [unified-page] 统一单页面 + 商业启动按钮 + 双栈 IP"
+if [ -f "$CC_BRIDGE/patch_unified_page.py" ]; then
+  if python3 "$CC_BRIDGE/patch_unified_page.py"; then
+    echo ">>> [unified-page] patch_unified_page.py OK"
+  else
+    echo "ERROR: $CC_BRIDGE/patch_unified_page.py 执行失败"
+    exit 1
+  fi
+else
+  echo ">>> [unified-page] 警告: patch_unified_page.py 不存在，跳过"
+fi
