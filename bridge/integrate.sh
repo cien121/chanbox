@@ -1192,3 +1192,24 @@ if [ -f "$CC_BRIDGE/patch_start_button_bottom.py" ]; then
 else
   echo ">>> [start-button-bottom] 警告: patch_start_button_bottom.py 不存在，跳过"
 fi
+
+
+# ---- 启动崩溃修复（#109 NB4A Crash）----
+# 根因：patch_start_button_bottom.py 把 StatsBar 仪表盘绑定改成
+# (context as MainActivity).findViewById，但 MainActivity.onCreate 在
+# setContentView 之前就调用 binding.stats.setOnClickListener，此时
+# Activity.findViewById 找不到任何 view -> lateinit NPE -> 启动即崩溃。
+# 修复：改用 rootView.findViewById（inflate 后的 binding.root 树），
+# 与 setContentView 调用顺序无关。
+# 补丁改 bridge/patch_crash_fix.py（幂等，可重复跑）。
+echo ">>> [crash-fix] StatsBar rootView 绑定修复"
+if [ -f "$CC_BRIDGE/patch_crash_fix.py" ]; then
+  if python3 "$CC_BRIDGE/patch_crash_fix.py"; then
+    echo ">>> [crash-fix] patch_crash_fix.py OK"
+  else
+    echo "ERROR: $CC_BRIDGE/patch_crash_fix.py 执行失败"
+    exit 1
+  fi
+else
+  echo ">>> [crash-fix] 警告: patch_crash_fix.py 不存在，跳过"
+fi
