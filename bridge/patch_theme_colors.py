@@ -58,7 +58,8 @@ Changes (all under the NekoBox checkout, run from its root):
        MIERU pink_500, ANYTLS light_blue_500, SHADOWTLS amber_500,
        CHAIN blue_grey_400, CONFIG brown_500, NEKO textColorPrimary,
        else accentOrTextSecondary (unchanged).
-   - Adds imports: ProxyEntity.Companion.* and ktx.getColour.
+   - Adds named imports of ProxyEntity.Companion.TYPE_* and ktx.getColour
+     (Kotlin forbids star-importing from a companion object).
    - Marker: protocolMixedColors (idempotent).
 
 5. Settings page: remove the "theme" (ColorPickerPreference) item entirely,
@@ -179,7 +180,14 @@ OLD_PROTO_COLOR_RE = re.compile(
     r"    \}\n"
 )
 
-IMPORT_WILDCARD = "import io.nekohasekai.sagernet.database.ProxyEntity.Companion.*\n"
+# Kotlin forbids star-importing from a companion object
+# ("Cannot import on demand from object 'Companion'"), so import each
+# TYPE_* constant used by PROTO_COLOR_BODY by name.
+_TYPE_IMPORT_PREFIX = "import io.nekohasekai.sagernet.database.ProxyEntity.Companion."
+IMPORT_TYPE_CONSTS = "".join(
+    _TYPE_IMPORT_PREFIX + name + "\n"
+    for name in sorted(set(re.findall(r"\bTYPE_[A-Z0-9_]+\b", PROTO_COLOR_BODY)))
+)
 IMPORT_GETCOLOUR = "import io.nekohasekai.sagernet.ktx.getColour\n"
 
 # --- settings page: drop the theme picker ---
@@ -278,10 +286,10 @@ def patch_protocols_kt():
 
     # add imports (after the package line block, keep it simple: append to
     # the import section)
-    if IMPORT_WILDCARD not in src:
+    if IMPORT_TYPE_CONSTS not in src:
         anchor = "import io.nekohasekai.sagernet.ktx.getColorAttr\n"
         assert anchor in src, "import anchor not found in Protocols.kt"
-        src = src.replace(anchor, anchor + IMPORT_WILDCARD + IMPORT_GETCOLOUR, 1)
+        src = src.replace(anchor, anchor + IMPORT_TYPE_CONSTS + IMPORT_GETCOLOUR, 1)
 
     m = OLD_PROTO_COLOR_RE.search(src)
     assert m, "getProtocolColor() body not found in Protocols.kt"
