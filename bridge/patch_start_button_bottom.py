@@ -359,6 +359,26 @@ def patch_statsbar_dashboard_binding(root):
     print("StatsBar.kt dashboard bindings activity-scoped OK")
 
 
+def patch_dashboard_glass(root):
+    """Frosted glass dashboard cards: translucent body lets the gradient show through."""
+    path = root + "/" + LAYOUT_MAIN
+    src = _read(path)
+    if MARKER + ":glasscards" in src:
+        print("layout_main.xml dashboard glass already applied, skip")
+        return
+    old = 'app:cardBackgroundColor="#161616"'
+    assert src.count(old) == 4, "dashboard card background count changed"
+    src = src.replace(old, 'app:cardBackgroundColor="#2EFFFFFF"')
+    old = "<!-- " + MARKER + ":dashboardtop dashboard panel below node list -->"
+    assert src.count(old) == 1, "dashboard panel comment not found"
+    src = src.replace(
+        old,
+        old + "\n        <!-- " + MARKER + ":glasscards frosted glass cards, gradient shows through -->",
+        1)
+    _write(path, src)
+    print("layout_main.xml dashboard frosted glass OK")
+
+
 def patch_profile_item(root):
     """Compact node cards: single-line ellipsis name, tighter padding."""
     path = root + "/" + PROFILE_ITEM
@@ -603,6 +623,7 @@ def main():
     patch_layout(root)
     patch_statsbar(root)
     patch_statsbar_dashboard_binding(root)
+    patch_dashboard_glass(root)
     patch_profile_item(root)
     patch_main_activity(root)
     patch_strings(root)
