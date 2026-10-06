@@ -1092,3 +1092,50 @@ if [ -f "$LB_BRIDGE/patch_loadbalance_quick.py" ]; then
 else
   echo ">>> [loadbalance-quick] 警告: patch_loadbalance_quick.py 不存在，跳过"
 fi
+
+
+# ---- 配置面板卡片化：底部状态栏改成两张卡片 + 现代纸飞机按钮 ----
+# 用户要求（2026-10-06）：配置面板改成卡片式；第一项放连接速率/负载均衡/
+# IP出口，第二项放节点配置（含测速卡片）；卡片设计灵活生动、间距宽松；
+# 黑底混合色；VPN 启动图标（纸飞机圆形按钮）重新设计、现代一点。
+# 补丁改 bridge/patch_config_cards.py（幂等，可重复跑）：
+#   1. layout_main.xml：StatsBar 内容换成两张 MaterialCardView
+#      （卡片一：连接速率/负载均衡/IP出口；卡片二：节点配置+测速按钮）；
+#   2. layout_main.xml：ServiceButton 改圆角方形 + 蓝色（现代样式）；
+#   3. themes.xml：加 ShapeAppearance.RelayBox.FabSquircle；
+#   4. StatsBar.kt：接线（实时速率、负载均衡点按切换、IP归属地查询、
+#      节点卡片、卡片内 Ookla 测速）；
+#   5. libcore/speedtest.go：追加 ipGeoLookup（走代理查 ip-api.com）；
+#   6. libcore/box.go：导出 IPGeoLookup；
+#   7. SpeedTestInstance.kt：加 doIPGeoLookup；
+#   8. strings.xml（中/英）：加文案。
+# 需 patch_speedtest.py / patch_loadbalance.py / patch_loadbalance_quick.py 先跑。
+# 补丁脚本在 ../chanbox-assets/bridge/，幂等，可重复跑。
+echo ">>> [config-cards] 配置面板卡片化 + 现代启动按钮"
+CC_BRIDGE="../chanbox-assets/bridge"
+if [ -f "$CC_BRIDGE/patch_config_cards.py" ]; then
+  if python3 "$CC_BRIDGE/patch_config_cards.py"; then
+    echo ">>> [config-cards] patch_config_cards.py OK"
+  else
+    echo "ERROR: $CC_BRIDGE/patch_config_cards.py 执行失败"
+    exit 1
+  fi
+else
+  echo ">>> [config-cards] 警告: patch_config_cards.py 不存在，跳过"
+fi
+
+# ---- 安装包版本号 v01（干净，不带 142） ----
+# 用户要求（2026-10-06）：安装包版本号改成 v01，不要带 142。
+# nb4a.properties: VERSION_NAME=1.4.2 -> v01（APK 文件名不再带 142）。
+# 补丁改 bridge/patch_version_v01.py（幂等，可重复跑）。
+echo ">>> [version-v01] 安装包版本号 v01"
+if [ -f "$CC_BRIDGE/patch_version_v01.py" ]; then
+  if python3 "$CC_BRIDGE/patch_version_v01.py"; then
+    echo ">>> [version-v01] patch_version_v01.py OK"
+  else
+    echo "ERROR: $CC_BRIDGE/patch_version_v01.py 执行失败"
+    exit 1
+  fi
+else
+  echo ">>> [version-v01] 警告: patch_version_v01.py 不存在，跳过"
+fi
