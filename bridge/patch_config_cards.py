@@ -1091,8 +1091,6 @@ def _methods_block():
             }
         }
     }
-
-    fun testConnection() {
 """
 
 
