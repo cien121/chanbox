@@ -1230,3 +1230,18 @@ if [ -f "$CC_BRIDGE/patch_ui_tweak.py" ]; then
 else
   echo ">>> [ui-tweak] 警告: patch_ui_tweak.py 不存在，跳过"
 fi
+
+# ---- #113 紧凑化：底部导航图标放大、仪表盘卡片纵向收紧 ----
+# 用户要求（2026-10-06）："最下面4的图标需要增大，太小了" + "中间那几张卡片
+# （下载/上传、自动选择、节点配置）再缩小紧凑些，纵向空间不够"。
+# 补丁改 bridge/patch_compact.py（幂等，可重复跑）。
+if [ -f "$CC_BRIDGE/patch_compact.py" ]; then
+  if python3 "$CC_BRIDGE/patch_compact.py"; then
+    echo ">>> [compact] patch_compact.py OK"
+  else
+    echo "ERROR: $CC_BRIDGE/patch_compact.py 执行失败"
+    exit 1
+  fi
+else
+  echo ">>> [compact] 警告: patch_compact.py 不存在，跳过"
+fi
