@@ -554,7 +554,7 @@ def patch_main_activity_highlight(root):
         "    private fun styleNavItem(pill: android.view.View, icon: android.widget.ImageView, label: android.widget.TextView, active: Boolean, accent: Int, idle: Int, pillOn: Int, pillOff: Int) {\n"
         "        icon.setColorFilter(if (active) accent else idle)\n"
         "        label.setTextColor(if (active) accent else idle)\n"
-        "        (pill.background as android.graphics.drawable.GradientDrawable).mutate().setColor(if (active) pillOn else pillOff)\n"
+        "        (pill.background.mutate() as android.graphics.drawable.GradientDrawable).setColor(if (active) pillOn else pillOff)\n"
         "    }\n"
         "\n"
         "    fun displayFragmentWithId(@IdRes id: Int): Boolean {"
