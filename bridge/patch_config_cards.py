@@ -24,7 +24,7 @@ Changes (run from NekoBox checkout root):
 4. app/src/main/java/io/nekohasekai/sagernet/ui/MainActivity.kt
    - Add toggleService(); FAB uses it; cbSpeedUpdate -> updateTraffic.
 5. libcore/speedtest.go - append ipGeoLookup (ip-api.com through proxy).
-6. libcore/box.go - export IPGeoLookup (requires patch_speedtest first).
+6. libcore/box.go - export EgressGeoLookup (requires patch_speedtest first).
 7. bg/proto/SpeedTestInstance.kt - add doIPGeoLookup (requires patch_speedtest).
 8. values/strings.xml + values-zh-rCN/strings.xml - new strings.
 
@@ -1207,10 +1207,10 @@ func ipGeoLookup(client *http.Client, timeout int32) (string, error) {
 """
 
 BOX_GO_IPGEO = """
-// IPGeoLookup returns "country|city|ip" of the proxy egress via ip-api.com.
+// EgressGeoLookup returns "country|city|ip" of the proxy egress via ip-api.com.
 // If i is nil, uses mainInstance (or direct if no service running).
-func IPGeoLookup(i *BoxInstance, timeout int32) (info string, err error) {
-	defer device.DeferPanicToError("box.IPGeoLookup", func(err_ error) { err = err_ })
+func EgressGeoLookup(i *BoxInstance, timeout int32) (info string, err error) {
+	defer device.DeferPanicToError("box.EgressGeoLookup", func(err_ error) { err = err_ })
 	var client *http.Client
 	if i != nil {
 		var connectionTracker adapter.ConnectionTracker
@@ -1248,14 +1248,14 @@ def patch_go_box(root):
     path = root + "/" + BOX_GO
     src = _read(path)
     if GEO_MARKER in src:
-        print("box.go IPGeoLookup already exported, skip")
+        print("box.go EgressGeoLookup already exported, skip")
         return
     assert "chanboxSpeedTest" in src, "patch_speedtest.py must run first"
     anchor = "var protectCloser io.Closer"
     assert src.count(anchor) == 1, "box.go anchor not found exactly once"
     src = src.replace(anchor, "// " + GEO_MARKER + BOX_GO_IPGEO + "\n" + anchor, 1)
     _write(path, src)
-    print("box.go IPGeoLookup exported OK")
+    print("box.go EgressGeoLookup exported OK")
 
 
 # ---------------------------------------------------------------- SpeedTestInstance.kt
@@ -1274,7 +1274,7 @@ INSTANCE_GEO_KT = """    // {G}: egress IP + geolocation through this profile's 
                         if (processes.processCount > 0) {
                             delay(500)
                         }
-                        c.tryResume(Libcore.iPGeoLookup(box, timeout))
+                        c.tryResume(Libcore.egressGeoLookup(box, timeout))
                     } catch (e: Exception) {
                         c.tryResumeWithException(e)
                     }
