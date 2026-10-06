@@ -677,6 +677,55 @@ def patch_dashboard_narrow_cards(root):
     print("layout_main.xml dashboard cards narrowed OK")
 
 
+CONFIGURATION_FRAGMENT = "app/src/main/java/io/nekohasekai/sagernet/ui/ConfigurationFragment.kt"
+
+
+def patch_configuration_fragment_remove_search(root):
+    """Remove the dangling R.id.action_search wiring in ConfigurationFragment.kt.
+
+    patch_menu_remove_search() deletes the action_search menu item, so the
+    Kotlin reference `toolbar.findViewById<SearchView>(R.id.action_search)`
+    no longer resolves (build #111 failed: 'Unresolved reference action_search').
+    Remove the searchView declaration + its listener block (lines kept idempotent
+    via marker). The private cancelSearch() stays; unused private funs only warn.
+    """
+    path = root + "/" + CONFIGURATION_FRAGMENT
+    src = _read(path)
+    if MARKER + ":nosearchfrag" in src:
+        print("ConfigurationFragment.kt search wiring already removed, skip")
+        return
+
+    lines = src.split("\n")
+    idx = None
+    for i, l in enumerate(lines):
+        if "findViewById<SearchView>(R.id.action_search)" in l:
+            idx = i
+            break
+    assert idx is not None, "action_search findViewById not found in ConfigurationFragment.kt"
+
+    j = idx
+    while j < len(lines) and "if (searchView != null)" not in lines[j]:
+        j += 1
+    assert j < len(lines), "searchView if-block not found in ConfigurationFragment.kt"
+
+    # Brace-count to the end of the if-block.
+    depth = 0
+    k = j
+    while k < len(lines):
+        depth += lines[k].count("{") - lines[k].count("}")
+        if depth == 0:
+            break
+        k += 1
+    assert depth == 0, "unbalanced braces in searchView if-block"
+
+    indent = lines[idx][:len(lines[idx]) - len(lines[idx].lstrip())]
+    del lines[idx:k + 1]
+    lines.insert(idx, indent + "// " + MARKER +
+                 ":nosearchfrag search wiring removed (menu item action_search deleted)")
+    _write(path, "\n".join(lines))
+    print("ConfigurationFragment.kt search wiring removed OK")
+
+
 def main():
     root = "."
     patch_layout_remove_menu(root)
@@ -687,6 +736,7 @@ def main():
     patch_main_activity_remove_drawer(root)
     patch_toolbar_fragment(root)
     patch_menu_remove_search(root)
+    patch_configuration_fragment_remove_search(root)
     patch_appbar_gradient(root)
     patch_dashboard_narrow_cards(root)
     print("ALL UI-TWEAK PATCHES OK")
