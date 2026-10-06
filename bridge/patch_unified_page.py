@@ -209,6 +209,46 @@ def patch_layouts_kt(root):
     print("Layouts.kt unified OK (FAB scroll logic removed)")
 
 
+# ---------------------------------------------------------------- FixedGridLayoutManager.kt (FAB scroll behavior)
+GRID_KT = "app/src/main/java/io/nekohasekai/sagernet/ktx/FixedGridLayoutManager.kt"
+
+
+def patch_fixed_grid_layout_manager(root):
+    path = root + "/" + GRID_KT
+    src = _read(path)
+    if MARKER in src:
+        print("FixedGridLayoutManager.kt already unified, skip")
+        return
+    # Same treatment as Layouts.kt: the custom grid LayoutManager (added by
+    # patch_two_column.py) hides/shows the FAB on overscroll, but the FAB is
+    # gone in the unified page. Simplify scrollVerticallyBy to just delegate.
+    sig = "    override fun scrollVerticallyBy("
+    assert src.count(sig) == 1, "scrollVerticallyBy anchor not found"
+    i = src.index(sig)
+    # end of the function: first 4-space-indent closing brace after the signature
+    end_anchor = "\n    }\n"
+    j = src.index(end_anchor, i) + 1  # j points at the "}" of the function
+    replacement = (
+        "    override fun scrollVerticallyBy(\n"
+        "        dx: Int, recycler: RecyclerView.Recycler,\n"
+        "        state: RecyclerView.State\n"
+        "    ): Int {\n"
+        "        // " + MARKER + ": FAB removed; no hide/show on scroll needed.\n"
+        "        return super.scrollVerticallyBy(dx, recycler, state)\n"
+    )
+    src = src[:i] + replacement + src[j:]
+    # refresh the stale header comment (FAB behavior is gone)
+    old_comment = ("// Same IndexOutOfBoundsException guard and FAB "
+                   "hide/show-on-scroll behavior.")
+    if old_comment in src:
+        src = src.replace(
+            old_comment,
+            "// Same IndexOutOfBoundsException guard. FAB scroll behavior "
+            "removed by " + MARKER + ".", 1)
+    _write(path, src)
+    print("FixedGridLayoutManager.kt unified OK (FAB scroll logic removed)")
+
+
 # ---------------------------------------------------------------- Go: dual-stack IP
 DUALSTACK_GO = """
 // """ + "chanboxUnifiedPage" + """: query both IPv4 and IPv6 egress addresses.
@@ -508,6 +548,7 @@ def main():
     patch_layout_unified(root)
     patch_main_activity_unified(root)
     patch_layouts_kt(root)
+    patch_fixed_grid_layout_manager(root)
     patch_go_dualstack(root)
     patch_instance_dualstack(root)
     patch_statsbar_dualstack(root)
