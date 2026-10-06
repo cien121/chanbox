@@ -1172,3 +1172,23 @@ if [ -f "$CC_BRIDGE/patch_unified_page.py" ]; then
 else
   echo ">>> [unified-page] 警告: patch_unified_page.py 不存在，跳过"
 fi
+
+
+# ---- 启动键移到底部 + 底部导航栏 + 节点列表置顶 ----
+# 用户要求（2026-10-06）："启动键放在最下面"；"菜单键也独立出来，放在最下面"；
+# "配置、路由、设置、分组摊开显示，不要藏在菜单里"；"日志和工具直接从界面上拿掉"；
+# 追加："4 个菜单按键做得精致一点"（选中高亮）；"样式小一点"（紧凑小尺寸）；
+# "节点信息（节点卡片列表）放在上面，样式紧凑缩小些"（节点列表移到仪表盘上方，
+# 节点卡片紧凑）；"节点名显示一行，不要换行分成两排（长名字用省略号）"。
+# 补丁改 bridge/patch_start_button_bottom.py（幂等，可重复跑）。
+echo ">>> [start-button-bottom] 启动键到底部 + 底部导航 + 节点列表置顶"
+if [ -f "$CC_BRIDGE/patch_start_button_bottom.py" ]; then
+  if python3 "$CC_BRIDGE/patch_start_button_bottom.py"; then
+    echo ">>> [start-button-bottom] patch_start_button_bottom.py OK"
+  else
+    echo "ERROR: $CC_BRIDGE/patch_start_button_bottom.py 执行失败"
+    exit 1
+  fi
+else
+  echo ">>> [start-button-bottom] 警告: patch_start_button_bottom.py 不存在，跳过"
+fi
