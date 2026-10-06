@@ -1124,6 +1124,21 @@ else
   echo ">>> [config-cards] 警告: patch_config_cards.py 不存在，跳过"
 fi
 
+# ---- 配置面板卡片 v4 polish：40 国旗 + 延迟质量中文 ----
+# 在 v3 基础上：countryLabel 从 14 国扩展到 40 国；ping pill 追加
+# 中文质量词（极速/流畅/一般/较慢）。幂等，需 v3 先跑。
+echo ">>> [config-cards-v4] 卡片 v4 polish"
+if [ -f "$CC_BRIDGE/patch_config_cards_v4.py" ]; then
+  if python3 "$CC_BRIDGE/patch_config_cards_v4.py"; then
+    echo ">>> [config-cards-v4] patch_config_cards_v4.py OK"
+  else
+    echo "ERROR: $CC_BRIDGE/patch_config_cards_v4.py 执行失败"
+    exit 1
+  fi
+else
+  echo ">>> [config-cards-v4] 警告: patch_config_cards_v4.py 不存在，跳过"
+fi
+
 # ---- 安装包版本号 v01（干净，不带 142） ----
 # 用户要求（2026-10-06）：安装包版本号改成 v01，不要带 142。
 # nb4a.properties: VERSION_NAME=1.4.2 -> v01（APK 文件名不再带 142）。
@@ -1139,3 +1154,4 @@ if [ -f "$CC_BRIDGE/patch_version_v01.py" ]; then
 else
   echo ">>> [version-v01] 警告: patch_version_v01.py 不存在，跳过"
 fi
+
