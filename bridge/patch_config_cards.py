@@ -117,8 +117,13 @@ DASHBOARD_INNER = """<!-- {M}: ZedSecure-style dashboard -->
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginEnd="4dp"
-                        android:textColor="#81C784"
-                        android:textSize="14sp"
+                        android:background="@drawable/bg_pill_latency"
+                        android:paddingStart="10dp"
+                        android:paddingEnd="10dp"
+                        android:paddingTop="3dp"
+                        android:paddingBottom="3dp"
+                        android:textColor="#FFFFFF"
+                        android:textSize="13sp"
                         android:textStyle="bold"
                         tools:text="208ms" />
 
@@ -238,6 +243,16 @@ DASHBOARD_INNER = """<!-- {M}: ZedSecure-style dashboard -->
                                 android:textColor="#9E9E9E"
                                 android:textSize="12sp"
                                 tools:text="262.0 KB" />
+
+                            <ProgressBar
+                                android:id="@+id/card_down_bar"
+                                style="?android:attr/progressBarStyleHorizontal"
+                                android:layout_width="match_parent"
+                                android:layout_height="4dp"
+                                android:layout_marginTop="8dp"
+                                android:max="100"
+                                android:progress="0"
+                                android:progressDrawable="@drawable/bg_speed_bar_blue" />
                         </LinearLayout>
                     </com.google.android.material.card.MaterialCardView>
 
@@ -298,6 +313,16 @@ DASHBOARD_INNER = """<!-- {M}: ZedSecure-style dashboard -->
                                 android:textColor="#9E9E9E"
                                 android:textSize="12sp"
                                 tools:text="59.9 KB" />
+
+                            <ProgressBar
+                                android:id="@+id/card_up_bar"
+                                style="?android:attr/progressBarStyleHorizontal"
+                                android:layout_width="match_parent"
+                                android:layout_height="4dp"
+                                android:layout_marginTop="8dp"
+                                android:max="100"
+                                android:progress="0"
+                                android:progressDrawable="@drawable/bg_speed_bar_purple" />
                         </LinearLayout>
                     </com.google.android.material.card.MaterialCardView>
                 </LinearLayout>
@@ -538,13 +563,91 @@ PANEL_GRADIENT = """<?xml version="1.0" encoding="utf-8"?>
 </shape>
 """
 
+SPEED_BAR_BLUE = """<?xml version="1.0" encoding="utf-8"?>
+<!-- {M}: live speed bar -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@android:id/background">
+        <shape>
+            <corners android:radius="2dp" />
+            <solid android:color="#2A2A2A" />
+        </shape>
+    </item>
+    <item android:id="@android:id/progress">
+        <clip>
+            <shape>
+                <corners android:radius="2dp" />
+                <solid android:color="@color/material_blue_500" />
+            </shape>
+        </clip>
+    </item>
+</layer-list>
+"""
+
+SPEED_BAR_PURPLE = """<?xml version="1.0" encoding="utf-8"?>
+<!-- {M}: live speed bar -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@android:id/background">
+        <shape>
+            <corners android:radius="2dp" />
+            <solid android:color="#2A2A2A" />
+        </shape>
+    </item>
+    <item android:id="@android:id/progress">
+        <clip>
+            <shape>
+                <corners android:radius="2dp" />
+                <solid android:color="@color/material_purple_500" />
+            </shape>
+        </clip>
+    </item>
+</layer-list>
+"""
+
+PILL_LATENCY = """<?xml version="1.0" encoding="utf-8"?>
+<!-- {M}: latency quality pill, neutral -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <corners android:radius="12dp" />
+    <solid android:color="#424242" />
+</shape>
+"""
+
+PILL_LATENCY_GOOD = """<?xml version="1.0" encoding="utf-8"?>
+<!-- {M}: latency quality pill, good (<120ms) -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <corners android:radius="12dp" />
+    <solid android:color="#2E7D32" />
+</shape>
+"""
+
+PILL_LATENCY_MID = """<?xml version="1.0" encoding="utf-8"?>
+<!-- {M}: latency quality pill, fair (<300ms) -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <corners android:radius="12dp" />
+    <solid android:color="#B7791F" />
+</shape>
+"""
+
+PILL_LATENCY_BAD = """<?xml version="1.0" encoding="utf-8"?>
+<!-- {M}: latency quality pill, poor -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <corners android:radius="12dp" />
+    <solid android:color="#C62828" />
+</shape>
+"""
+
 
 def patch_drawables(root):
     import os
     d = root + "/" + DRAWABLE_DIR
     for name, content in (("bg_badge_on.xml", BADGE_ON),
                           ("bg_badge_off.xml", BADGE_OFF),
-                          ("bg_panel_gradient.xml", PANEL_GRADIENT)):
+                          ("bg_panel_gradient.xml", PANEL_GRADIENT),
+                          ("bg_speed_bar_blue.xml", SPEED_BAR_BLUE),
+                          ("bg_speed_bar_purple.xml", SPEED_BAR_PURPLE),
+                          ("bg_pill_latency.xml", PILL_LATENCY),
+                          ("bg_pill_latency_good.xml", PILL_LATENCY_GOOD),
+                          ("bg_pill_latency_mid.xml", PILL_LATENCY_MID),
+                          ("bg_pill_latency_bad.xml", PILL_LATENCY_BAD)):
         path = d + "/" + name
         if os.path.exists(path) and MARKER in _read(path):
             print("%s already exists, skip" % name)
@@ -555,7 +658,9 @@ def patch_drawables(root):
 
 # ---------------------------------------------------------------- StatsBar.kt
 STATSBAR_IMPORTS_ANCHOR = "import io.nekohasekai.sagernet.ui.MainActivity"
-STATSBAR_IMPORTS_NEW = """import android.os.SystemClock
+STATSBAR_IMPORTS_NEW = """import android.animation.AnimatorSet
+import android.animation.ObjectAnimator
+import android.os.SystemClock
 import io.nekohasekai.sagernet.aidl.SpeedDisplayData
 import io.nekohasekai.sagernet.bg.proto.SpeedTestInstance
 import io.nekohasekai.sagernet.database.GroupManager
@@ -577,8 +682,10 @@ STATSBAR_FIELDS_NEW = """    private lateinit var statusText: TextView
     private lateinit var cardBadgeBg: View
     private lateinit var cardDownSpeed: TextView
     private lateinit var cardDownTotal: TextView
+    private lateinit var cardDownBar: android.widget.ProgressBar
     private lateinit var cardUpSpeed: TextView
     private lateinit var cardUpTotal: TextView
+    private lateinit var cardUpBar: android.widget.ProgressBar
     private lateinit var cardLbValue: TextView
     private lateinit var cardNodeName: TextView
     private lateinit var cardNodeDetail: TextView
@@ -587,7 +694,10 @@ STATSBAR_FIELDS_NEW = """    private lateinit var statusText: TextView
     private var ipGeoJob: Job? = null
     private var speedtestJob: Job? = null
     private var timerJob: Job? = null
+    private var breathAnimator: AnimatorSet? = null
     private var connectStartMs: Long = 0L
+    private var maxDownSpeed: Long = 1L
+    private var maxUpSpeed: Long = 1L
 """
 
 STATSBAR_BIND_OLD = """    override fun setOnClickListener(l: OnClickListener?) {
@@ -606,8 +716,10 @@ STATSBAR_BIND_NEW = """    override fun setOnClickListener(l: OnClickListener?) 
         cardBadgeBg = findViewById(R.id.card_badge_bg)
         cardDownSpeed = findViewById(R.id.card_down_speed)
         cardDownTotal = findViewById(R.id.card_down_total)
+        cardDownBar = findViewById(R.id.card_down_bar)
         cardUpSpeed = findViewById(R.id.card_up_speed)
         cardUpTotal = findViewById(R.id.card_up_total)
+        cardUpBar = findViewById(R.id.card_up_bar)
         cardLbValue = findViewById(R.id.card_lb_value)
         cardNodeName = findViewById(R.id.card_node_name)
         cardNodeDetail = findViewById(R.id.card_node_detail)
@@ -648,6 +760,10 @@ STATSBAR_SPEED_NEW = """    @SuppressLint("SetTextI18n")
         if (!::cardDownSpeed.isInitialized) return
         cardDownSpeed.text = context.getString(R.string.speed, Formatter.formatFileSize(context, rxRate))
         cardUpSpeed.text = context.getString(R.string.speed, Formatter.formatFileSize(context, txRate))
+        if (rxRate > maxDownSpeed) maxDownSpeed = rxRate
+        if (txRate > maxUpSpeed) maxUpSpeed = txRate
+        cardDownBar.progress = ((rxRate * 100 / maxDownSpeed).toInt()).coerceIn(0, 100)
+        cardUpBar.progress = ((txRate * 100 / maxUpSpeed).toInt()).coerceIn(0, 100)
     }
 
     fun updateTraffic(stats: SpeedDisplayData) {
@@ -673,11 +789,14 @@ STATSBAR_STATE_NEW = """        if ((state == BaseService.State.Connected).also 
             postWhenStarted {
                 if (allowShow) performShow()
                 setStatus(app.getText(R.string.vpn_connected))
+                maxDownSpeed = 1L
+                maxUpSpeed = 1L
                 setBadgeState(true)
                 startTimer()
                 updateNodeCard()
                 updateLbCard()
                 refreshIPGeo()
+                testConnection()
             }
         } else {
             postWhenStarted {
@@ -685,16 +804,21 @@ STATSBAR_STATE_NEW = """        if ((state == BaseService.State.Connected).also 
             }
             ipGeoJob?.cancel()
             speedtestJob?.cancel()
-            stopTimer()
-            setBadgeState(false)
-            updateSpeed(0, 0)
-            if (::cardLocValue.isInitialized) {
-                cardLocValue.text = "\\uD83C\\uDF0D " + app.getString(R.string.card_ip_unknown)
-                cardPingValue.text = "--"
-            }
-            if (::cardSpeedtestValue.isInitialized) {
-                cardSpeedtestValue.text = ""
-                cardSpeedtestBtn.isEnabled = true
+            if (state == BaseService.State.Connecting) {
+                setBadgeConnecting()
+            } else {
+                stopTimer()
+                setBadgeState(false)
+                updateSpeed(0, 0)
+                if (::cardLocValue.isInitialized) {
+                    cardLocValue.text = "\\uD83C\\uDF0D " + app.getString(R.string.card_ip_unknown)
+                    cardPingValue.text = "--"
+                    cardPingValue.setBackgroundResource(R.drawable.bg_pill_latency)
+                }
+                if (::cardSpeedtestValue.isInitialized) {
+                    cardSpeedtestValue.text = ""
+                    cardSpeedtestBtn.isEnabled = true
+                }
             }
 """
 
@@ -708,6 +832,7 @@ STATSBAR_PING_NEW = """                val elapsed = activity.urlTest()
                     isEnabled = true
                     if (::cardPingValue.isInitialized) {
                         cardPingValue.text = "" + elapsed + "ms"
+                        updateLatencyPill(elapsed.toInt())
                     }
                     setStatus(
 """
@@ -717,7 +842,7 @@ def _methods_block():
     # built with plain concatenation to avoid %-format vs Kotlin "%02d" clashes
     M = MARKER
     return """
-    // """ + M + """: badge on/off visuals.
+    // """ + M + """: badge on/off visuals + breathing animation when connected.
     private fun setBadgeState(connected: Boolean) {
         if (!::cardBadgeBg.isInitialized) return
         cardBadgeBg.setBackgroundResource(
@@ -726,6 +851,77 @@ def _methods_block():
         cardBadgeState.text = app.getString(
             if (connected) R.string.card_badge_connected else R.string.card_badge_disconnected
         )
+        if (connected) startBreathing() else stopBreathing()
+    }
+
+    // """ + M + """: gentle breathing scale on the badge, feels alive.
+    private fun startBreathing(fast: Boolean = false) {
+        stopBreathing()
+        if (!::cardBadgeBg.isInitialized) return
+        val dur = if (fast) 900L else 2200L
+        val sx = ObjectAnimator.ofFloat(cardBadgeBg, "scaleX", 1f, 1.06f, 1f)
+        val sy = ObjectAnimator.ofFloat(cardBadgeBg, "scaleY", 1f, 1.06f, 1f)
+        sx.duration = dur
+        sy.duration = dur
+        sx.repeatCount = ObjectAnimator.INFINITE
+        sy.repeatCount = ObjectAnimator.INFINITE
+        breathAnimator = AnimatorSet().apply {
+            playTogether(sx, sy)
+            start()
+        }
+    }
+
+    private fun stopBreathing() {
+        breathAnimator?.cancel()
+        breathAnimator = null
+        if (::cardBadgeBg.isInitialized) {
+            cardBadgeBg.scaleX = 1f
+            cardBadgeBg.scaleY = 1f
+        }
+    }
+
+    // """ + M + """: connecting state - badge pulses fast with "connecting" text.
+    private fun setBadgeConnecting() {
+        if (!::cardBadgeBg.isInitialized) return
+        cardBadgeBg.setBackgroundResource(R.drawable.bg_badge_on)
+        cardBadgeState.text = app.getString(R.string.card_badge_connecting)
+        if (::cardTimer.isInitialized) cardTimer.text = "00:00"
+        startBreathing(fast = true)
+    }
+
+    // """ + M + """: latency pill color tells line quality at a glance.
+    private fun updateLatencyPill(ms: Int) {
+        if (!::cardPingValue.isInitialized) return
+        cardPingValue.setBackgroundResource(
+            when {
+                ms < 0 -> R.drawable.bg_pill_latency
+                ms < 120 -> R.drawable.bg_pill_latency_good
+                ms < 300 -> R.drawable.bg_pill_latency_mid
+                else -> R.drawable.bg_pill_latency_bad
+            }
+        )
+    }
+
+    // """ + M + """: flag + Chinese country name, friendlier for Chinese users.
+    private fun countryLabel(countryEn: String, ip: String): String {
+        val name = when (countryEn.lowercase()) {
+            "united states" -> "\\uD83C\\uDDFA\\uD83C\\uDDF8 \\u7F8E\\u56FD"
+            "japan" -> "\\uD83C\\uDDEF\\uD83C\\uDDF5 \\u65E5\\u672C"
+            "singapore" -> "\\uD83C\\uDDF8\\uD83C\\uDDEC \\u65B0\\u52A0\\u5761"
+            "germany" -> "\\uD83C\\uDDE9\\uD83C\\uDDEA \\u5FB7\\u56FD"
+            "united kingdom" -> "\\uD83C\\uDDEC\\uD83C\\uDDE7 \\u82F1\\u56FD"
+            "france" -> "\\uD83C\\uDDEB\\uD83C\\uDDF7 \\u6CD5\\u56FD"
+            "netherlands" -> "\\uD83C\\uDDF3\\uD83C\\uDDF1 \\u8377\\u5170"
+            "canada" -> "\\uD83C\\uDDE8\\uD83C\\uDDE6 \\u52A0\\u62FF\\u5927"
+            "australia" -> "\\uD83C\\uDDE6\\uD83C\\uDDFA \\u6FB3\\u5927\\u5229\\u4E9A"
+            "south korea", "korea" -> "\\uD83C\\uDDF0\\uD83C\\uDDF7 \\u97E9\\u56FD"
+            "hong kong" -> "\\uD83C\\uDDED\\uD83C\\uDDF0 \\u9999\\u6E2F"
+            "taiwan" -> "\\uD83C\\uDDF9\\uD83C\\uDDFC \\u53F0\\u6E7E"
+            "russia" -> "\\uD83C\\uDDF7\\uD83C\\uDDFA \\u4FC4\\u7F57\\u65AF"
+            "india" -> "\\uD83C\\uDDEE\\uD83C\\uDDF3 \\u5370\\u5EA6"
+            else -> "\\uD83C\\uDF0D " + countryEn
+        }
+        return name + " \\u00B7 " + ip
     }
 
     // """ + M + """: connection duration timer inside the badge.
@@ -810,7 +1006,9 @@ def _methods_block():
                     ?: return@runOnDefaultDispatcher
                 val bean = entity.requireBean()
                 val name = entity.displayName().ifBlank { entity.displayType() }
-                val detail = entity.displayType() + " \\u00B7 " + bean.serverAddress + ":" + bean.serverPort
+                var detail = entity.displayType() + " \\u00B7 " + bean.serverAddress + ":" + bean.serverPort
+                val pingMs = entity.ping
+                if (pingMs > 0) detail += " \\u00B7 " + pingMs + "ms"
                 onMainDispatcher {
                     cardNodeName.text = name
                     cardNodeDetail.text = detail
@@ -836,10 +1034,10 @@ def _methods_block():
                     ?: throw IllegalStateException("no profile")
                 val raw = SpeedTestInstance(entity).doIPGeoLookup(10000)
                 val parts = raw.split("|")
-                val label = if (parts.size >= 3 && parts[0].isNotBlank()) {
-                    parts[0] + " \\u00B7 " + parts[2]
+                val label = if (parts.size >= 3 && parts[0].isNotBlank() && parts[2].isNotBlank()) {
+                    countryLabel(parts[0], parts[2])
                 } else raw
-                onMainDispatcher { cardLocValue.text = "\\uD83C\\uDF0D " + label }
+                onMainDispatcher { cardLocValue.text = label }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -1114,6 +1312,7 @@ STRINGS_EN_ADD = """    <!-- {M} -->
     <string name="card_auto_off">OFF</string>
     <string name="card_badge_connected">Connected</string>
     <string name="card_badge_disconnected">Disconnected</string>
+    <string name="card_badge_connecting">Connecting…</string>
     <string name="card_ip_fetching">locating…</string>
     <string name="card_ip_unknown">unknown</string>
     <string name="card_node_label">Node</string>
@@ -1130,6 +1329,7 @@ STRINGS_ZH_ADD = """    <!-- {M} -->
     <string name="card_auto_off">已关闭</string>
     <string name="card_badge_connected">已连接</string>
     <string name="card_badge_disconnected">未连接</string>
+    <string name="card_badge_connecting">连接中…</string>
     <string name="card_ip_fetching">获取中…</string>
     <string name="card_ip_unknown">未知</string>
     <string name="card_node_label">节点配置</string>
