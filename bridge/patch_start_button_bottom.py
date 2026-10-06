@@ -448,6 +448,17 @@ def patch_main_activity(root):
     assert src.count(old) == 1, "setContentView anchor not found"
     new = old + "        binding.stats.bindBottomBadge() // " + MARKER + "\n"
     src = src.replace(old, new, 1)
+
+    # dashboard only visible on the home (node list) page, as before relocation
+    old = "        supportFragmentManager.beginTransaction()\n"
+    assert src.count(old) == 1, "displayFragment anchor not found"
+    new = (
+        "        // " + MARKER + ":dashboardtop dashboard only on home (node list) page.\n"
+        "        findViewById<android.view.View>(R.id.dashboard_panel)?.visibility =\n"
+        "            if (fragment is ConfigurationFragment) android.view.View.VISIBLE else android.view.View.GONE\n"
+        + old
+    )
+    src = src.replace(old, new, 1)
     _write(path, src)
     print("MainActivity.kt bottom nav wired OK")
 
