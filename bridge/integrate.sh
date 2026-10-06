@@ -1213,3 +1213,20 @@ if [ -f "$CC_BRIDGE/patch_crash_fix.py" ]; then
 else
   echo ">>> [crash-fix] 警告: patch_crash_fix.py 不存在，跳过"
 fi
+
+# ---- #111 UI 调整：菜单键拿掉、卡片改回黑色、启动键缩小单独放、抽屉删掉、
+#      搜索图标删掉、顶栏紫蓝渐变、卡片宽度收窄 ----
+# 用户要求（2026-10-06）："菜单取消显示，透明磨砂还是还回黑色，启动按键做小点
+# 不要跟配置路由分组设置同在一行" + "侧边抽屉导航整个删掉" + "顶部工具栏搜索
+# 图标删掉，工具栏背景改紫蓝渐变" + "仪表盘卡片宽度收窄"。
+# 补丁改 bridge/patch_ui_tweak.py（幂等，可重复跑）。
+if [ -f "$CC_BRIDGE/patch_ui_tweak.py" ]; then
+  if python3 "$CC_BRIDGE/patch_ui_tweak.py"; then
+    echo ">>> [ui-tweak] patch_ui_tweak.py OK"
+  else
+    echo "ERROR: $CC_BRIDGE/patch_ui_tweak.py 执行失败"
+    exit 1
+  fi
+else
+  echo ">>> [ui-tweak] 警告: patch_ui_tweak.py 不存在，跳过"
+fi
