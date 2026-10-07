@@ -47,7 +47,8 @@ def patch_fmt():
         print("  [skip] HysteriaFmt.kt already fixed")
         return
 
-    # 1. Hy1 branch: null-safe hopPorts check
+    # 1+2. Hy1/Hy2 branches: v1 patch generated IDENTICAL text for both,
+    # so one anchor covers both occurrences. Null-safe hopPorts for both.
     old = """            // hy2HopField: independent hop-ports field; legacy serverPorts range still honored
             if (bean.hopPorts.isNotBlank()) {
                 server_port = bean.serverPorts.toIntOrNull() ?: 443
@@ -61,19 +62,8 @@ def patch_fmt():
                 val hops = hopPortsToSingboxList(hopPortsSafe)
                 if (hops.isNotEmpty()) server_ports = hops"""
     count = c.count(old)
-    assert count == 1, f"Hy1 null-safe anchor: expected 1, found {count}"
-    c = c.replace(old, new, 1)
-
-    # 2. Hy2 branch: null-safe hopPorts check
-    old = """            // hy2HopField: independent hop-ports field; legacy serverPorts range still honored
-            if (bean.hopPorts.isNotBlank()) {
-                server_port = bean.serverPorts.toIntOrNull() ?: 443
-                val hops = hopPortsToSingboxList(bean.hopPorts)
-                if (hops.isNotEmpty()) server_ports = hops"""
-    # After Hy1 replacement, there should be 1 remaining (Hy2)
-    count = c.count(old)
-    assert count == 1, f"Hy2 null-safe anchor: expected 1, found {count}"
-    c = c.replace(old, new, 1)
+    assert count == 2, f"Hy1/Hy2 null-safe anchor: expected 2, found {count}"
+    c = c.replace(old, new)
 
     # 3. toUri(): null-safe mportSrc
     old = """    // hy2HopField: export hop range via mport
