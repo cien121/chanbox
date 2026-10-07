@@ -1096,6 +1096,29 @@ else
   echo ">>> [hy2hopfix] 警告: patch_hy2_hopfield_fix.py 不存在，跳过"
 fi
 
+# ---- #119 后续加固：hopPorts 跳跃端口逻辑 ----
+# #119 的空安全修复已进包，但用户实测依然全部超时。深入排查（2026-10-07）确认：
+# 旧"NPE 拖死整批测试"理论不成立（urlTest 按 profile 独立 try/catch）；
+# 但 #117 的出站逻辑仍有真实健壮性 bug：
+#   1. server_port = serverPorts.toIntOrNull() ?: 443 —— "端口"不是纯数字时凭空捏造 443；
+#   2. 全链路无 trim，而 sing-box 的 ParsePorts 用 strconv.ParseUint 且不 trim，
+#      用户在手机上输入 "20000 - 21000"（带空格）会使 NewClient 直接报错，出站创建失败；
+#   3. hopPorts 非空但解析为空（垃圾输入）时，server_ports 未设置而 server_port 已被强制赋值。
+# 本补丁：trim 输入；只在"端口"是合法单端口时才设 server_port（不再捏造）；
+# hopPorts 解析为空时回退到旧 serverPorts 逻辑。
+echo ">>> [hy2hopharden] Hysteria2 hopPorts 逻辑加固"
+HY2HOPHARDEN_BRIDGE="../chanbox-assets/bridge"
+if [ -f "$HY2HOPHARDEN_BRIDGE/patch_hy2_hopfield_harden.py" ]; then
+  if python3 "$HY2HOPHARDEN_BRIDGE/patch_hy2_hopfield_harden.py"; then
+    echo ">>> [hy2hopharden] patch_hy2_hopfield_harden.py OK"
+  else
+    echo "ERROR: $HY2HOPHARDEN_BRIDGE/patch_hy2_hopfield_harden.py 执行失败"
+    exit 1
+  fi
+else
+  echo ">>> [hy2hopharden] 警告: patch_hy2_hopfield_harden.py 不存在，跳过"
+fi
+
 
 
 # ---- 负载均衡 (urltest 自动选优) ----
