@@ -1329,3 +1329,23 @@ if [ -f "$CC_BRIDGE/patch_nav_icons_v2.py" ]; then
 else
   echo ">>> [nav-icons-v2] 警告: patch_nav_icons_v2.py 不存在，跳过"
 fi
+
+# ---- 延迟测试 VPN 守卫（2026-10-07）----
+# 问题：VPN 连接时点节点列表"延迟测试"，每个节点的临时测试实例的 socket
+# 可能未被 TUN 保护，测试流量被主隧道吸走（"用当前节点测所有节点"），
+# 导致全部节点显示"超时"误报，但 VPN 本身工作正常。
+# 方案（产品化的 workaround）：在 ConfigurationFragment.urlTest() 入口检查
+# VPN 状态，运行时弹对话框让用户选择：[断开并测试] [仍要测试] [取消]。
+# 补丁改 bridge/patch_urltest_vpn_guard.py（幂等，可重复跑）。
+echo ">>> [urltest-vpn-guard] 延迟测试 VPN 运行守卫"
+UVG_BRIDGE="../chanbox-assets/bridge"
+if [ -f "$UVG_BRIDGE/patch_urltest_vpn_guard.py" ]; then
+  if python3 "$UVG_BRIDGE/patch_urltest_vpn_guard.py"; then
+    echo ">>> [urltest-vpn-guard] patch_urltest_vpn_guard.py OK"
+  else
+    echo "ERROR: $UVG_BRIDGE/patch_urltest_vpn_guard.py 执行失败"
+    exit 1
+  fi
+else
+  echo ">>> [urltest-vpn-guard] 警告: patch_urltest_vpn_guard.py 不存在，跳过"
+fi
