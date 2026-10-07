@@ -1078,6 +1078,24 @@ else
   echo ">>> [hy2hopfield] 警告: patch_hy2_hop_field.py 不存在，跳过"
 fi
 
+# ---- #117 回归修复：hopPorts 空安全 ----
+# #117 新增的 hopPorts 是 Java String，在 Kotlin 侧为平台类型。
+# 若运行时为 null，bean.hopPorts.isNotBlank() / hopPorts.ifBlank 会抛 NPE，
+# 导致延迟测试崩溃、所有节点显示失败。
+# 本补丁将相关访问改为 null-safe。
+echo ">>> [hy2hopfix] Hysteria2 hopPorts 空安全修复"
+HY2HOPFIX_BRIDGE="../chanbox-assets/bridge"
+if [ -f "$HY2HOPFIX_BRIDGE/patch_hy2_hopfield_fix.py" ]; then
+  if python3 "$HY2HOPFIX_BRIDGE/patch_hy2_hopfield_fix.py"; then
+    echo ">>> [hy2hopfix] patch_hy2_hopfield_fix.py OK"
+  else
+    echo "ERROR: $HY2HOPFIX_BRIDGE/patch_hy2_hopfield_fix.py 执行失败"
+    exit 1
+  fi
+else
+  echo ">>> [hy2hopfix] 警告: patch_hy2_hopfield_fix.py 不存在，跳过"
+fi
+
 
 
 # ---- 负载均衡 (urltest 自动选优) ----
