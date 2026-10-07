@@ -1337,18 +1337,11 @@ fi
 # 方案（产品化的 workaround）：在 ConfigurationFragment.urlTest() 入口检查
 # VPN 状态，运行时弹对话框让用户选择：[断开并测试] [仍要测试] [取消]。
 # 补丁改 bridge/patch_urltest_vpn_guard.py（幂等，可重复跑）。
-echo ">>> [urltest-vpn-guard] 延迟测试 VPN 运行守卫"
-UVG_BRIDGE="../chanbox-assets/bridge"
-if [ -f "$UVG_BRIDGE/patch_urltest_vpn_guard.py" ]; then
-  if python3 "$UVG_BRIDGE/patch_urltest_vpn_guard.py"; then
-    echo ">>> [urltest-vpn-guard] patch_urltest_vpn_guard.py OK"
-  else
-    echo "ERROR: $UVG_BRIDGE/patch_urltest_vpn_guard.py 执行失败"
-    exit 1
-  fi
-else
-  echo ">>> [urltest-vpn-guard] 警告: patch_urltest_vpn_guard.py 不存在，跳过"
-fi
+# [diag/sock-protect] 诊断分支禁用 urltest-vpn-guard：
+# 1) #122 真机启动即崩，守卫补丁是除诊断日志外唯一与 #119 的差异，疑为崩溃源；
+# 2) 诊断包应为 #119 代码 + 诊断日志，对话框会干扰复现步骤。
+# 主分支 main 的守卫不受影响。
+echo ">>> [urltest-vpn-guard] 诊断分支跳过（diag/sock-protect 专用）"
 
 # ---- socket 保护诊断日志（2026-10-07，诊断分支 diag/sock-protect 专用）----
 # 目标：定位 VPN 连接时延迟测试 socket 保护失效的具体断点。
