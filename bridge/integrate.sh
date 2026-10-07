@@ -1349,3 +1349,20 @@ if [ -f "$UVG_BRIDGE/patch_urltest_vpn_guard.py" ]; then
 else
   echo ">>> [urltest-vpn-guard] 警告: patch_urltest_vpn_guard.py 不存在，跳过"
 fi
+
+# ---- socket 保护诊断日志（2026-10-07，诊断分支 diag/sock-protect 专用）----
+# 目标：定位 VPN 连接时延迟测试 socket 保护失效的具体断点。
+# 只加日志、零行为变更。日志前缀统一为 SockProtectDiag，方便 logcat 过滤。
+# 补丁：bridge/patch_sockprotect_diag.py（幂等，可重复跑）。
+echo ">>> [sockprotect-diag] socket 保护诊断日志"
+SPD_BRIDGE="../chanbox-assets/bridge"
+if [ -f "$SPD_BRIDGE/patch_sockprotect_diag.py" ]; then
+  if python3 "$SPD_BRIDGE/patch_sockprotect_diag.py"; then
+    echo ">>> [sockprotect-diag] patch_sockprotect_diag.py OK"
+  else
+    echo "ERROR: $SPD_BRIDGE/patch_sockprotect_diag.py 执行失败"
+    exit 1
+  fi
+else
+  echo ">>> [sockprotect-diag] 警告: patch_sockprotect_diag.py 不存在，跳过"
+fi
