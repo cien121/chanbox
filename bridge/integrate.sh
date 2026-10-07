@@ -1359,3 +1359,19 @@ if [ -f "$SPD_BRIDGE/patch_sockprotect_diag.py" ]; then
 else
   echo ">>> [sockprotect-diag] 警告: patch_sockprotect_diag.py 不存在，跳过"
 fi
+# ---- 诊断日志一键导出（2026-10-07，诊断分支 diag/sock-protect 专用）----
+# 用户嫌 ADB 授权麻烦，在主界面 ⋮ 菜单加「导出诊断日志」：
+# 一键导出 SockProtectDiag 日志（logcat + neko.log）到文件并 Toast 路径。
+# 补丁：bridge/patch_diag_log_export.py（幂等，可重复跑）。
+echo ">>> [diag-log-export] 诊断日志一键导出"
+DLE_BRIDGE="../chanbox-assets/bridge"
+if [ -f "$DLE_BRIDGE/patch_diag_log_export.py" ]; then
+  if python3 "$DLE_BRIDGE/patch_diag_log_export.py"; then
+    echo ">>> [diag-log-export] patch_diag_log_export.py OK"
+  else
+    echo "ERROR: $DLE_BRIDGE/patch_diag_log_export.py 执行失败"
+    exit 1
+  fi
+else
+  echo ">>> [diag-log-export] 警告: patch_diag_log_export.py 不存在，跳过"
+fi
