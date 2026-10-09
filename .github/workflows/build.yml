@@ -72,3 +72,4 @@ jobs:
         with:
           name: ChanBox-APK
           path: nekobox/${{ env.APKDIR }}
+          retention-days: 7
